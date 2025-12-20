@@ -101,8 +101,6 @@
             Circle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/></IconBase>,
             StopCircle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></IconBase>,
             RotateCcw: (p) => <IconBase {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></IconBase>,
-            Download: (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconBase>,
-            Upload: (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconBase>,
             Info: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></IconBase>,
             Heart: (p) => <IconBase {...p}><path d="M19 14c1.49-1.28 3.6-2.5 3.6-4.96C22.6 5.11 19.5 2 15.5 2 12.5 2 11 4 11 4s-1.5-2-4.5-2C2.5 2 .6 5.11.6 9.04c0 2.46 2.1 3.68 3.6 4.96C6 15.77 11 19.5 11 19.5s5-3.73 6.8-5.5z"/></IconBase>,
             Star: (p) => <IconBase {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></IconBase>,
@@ -208,6 +206,15 @@
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
+        
+        // --- Helper: Get stats ---
+        const getStats = () => {
+             // ... Logic inferred from context but needed for view 'stats'
+             // Simple placeholder implementation if not provided, but usually it aggregates transactions
+             // Since getStats() call was in original code, I'll add a simple implementation here
+             return { today: {income:0, expense:0}, week: {income:0, expense:0}, month: {income:0, expense:0}, year: {income:0, expense:0} };
+        };
+
 
         // --- Main App ---
         function App() {
@@ -383,6 +390,31 @@
                     groups[dateStr].push(t);
                 });
                 return groups;
+            }
+            
+            // Helper for Stats View (Re-implementation to fix missing function)
+            const getStats = () => {
+                const now = new Date();
+                const todayStr = formatDate(now);
+                const stats = { today: {income:0, expense:0}, week: {income:0, expense:0}, month: {income:0, expense:0}, year: {income:0, expense:0} };
+                
+                // Helper to get start of week
+                const getStartOfWeek = (d) => { const date = new Date(d); const day = date.getDay(); const diff = date.getDate() - day + (day === 0 ? -6 : 1); return new Date(date.setDate(diff)); };
+                const startOfWeek = getStartOfWeek(now).toISOString().split('T')[0];
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+                
+                transactions.forEach(t => {
+                   const amt = Number(t.amount);
+                   const isExp = t.type === 'expense';
+                   const field = isExp ? 'expense' : 'income';
+                   
+                   if(t.date === todayStr) stats.today[field] += amt;
+                   if(t.date >= startOfWeek) stats.week[field] += amt;
+                   if(t.date >= startOfMonth) stats.month[field] += amt;
+                   if(t.date >= startOfYear) stats.year[field] += amt;
+                });
+                return stats;
             }
 
             const groupedTransactions = useMemo(() => getGroupedTransactions(filteredTransactions), [filteredTransactions]);
@@ -652,7 +684,6 @@
                             </div>
                         )}
 
-                        {/* ... (Other Views: Add, Manage, etc. kept same, ensuring Icons.X used) ... */}
                         {/* VIEW: Add/Edit Transaction */}
                         {view === 'add' && (
                             <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-bottom duration-200 overflow-y-auto safe-area-bottom">
@@ -704,7 +735,6 @@
                                 </div>
 
                                 <div className="space-y-3 mb-8">
-                                    {/* Advanced Options Logic ... same as previous ... */}
                                     {getAccountIcon(accounts.find(a => a.id === formData.accountId)?.type) === Icons.CreditCard && formData.type === 'expense' && (
                                         <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center justify-between"><span className="text-xs font-bold text-indigo-800 flex items-center gap-1"><Icons.CreditCard size={12}/> 分期付款</span><div className="flex items-center gap-2"><button onClick={() => setFormData({...formData, installments: 1})} className={`px-3 py-1 rounded text-xs font-bold ${formData.installments === 1 ? 'bg-indigo-600 text-white' : 'text-indigo-400 bg-white'}`}>一次</button><input type="number" placeholder="期數" className="w-12 py-1 px-1 text-center rounded text-xs font-bold outline-none border border-indigo-100" value={formData.installments > 1 ? formData.installments : ''} onChange={(e) => setFormData({...formData, installments: e.target.value})} /></div></div>
                                     )}
@@ -721,20 +751,135 @@
                             </div>
                         )}
                         
-                        {/* VIEW: Manage Accounts & Categories (Simplified for brevity, structure same as stable version) */}
+                        {/* VIEW: Manage Accounts & Categories */}
                         {view === 'manage_accounts' && (
                              <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
                                 <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">設定與管理</h2><button onClick={() => setView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronRight size={20} /></button></div>
-                                {/* ... Same settings content ... */}
                                 <div className="mb-6"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">每月預算設定</label><div className="flex items-center gap-3"><div className="flex-1 flex items-center bg-slate-50 rounded-xl px-4 py-3 border border-slate-100"><span className="font-bold text-slate-400 mr-2">$</span><input type="number" value={budgetLimit} onChange={(e) => setBudgetLimit(Number(e.target.value))} className="bg-transparent font-bold text-slate-900 outline-none w-full" /></div><div className="flex-1 flex items-center bg-slate-50 rounded-xl px-4 py-3 border border-slate-100"><span className="font-bold text-slate-400 mr-2 whitespace-nowrap">起始日</span><input type="number" min="1" max="28" value={budgetStartDay} onChange={(e) => setBudgetStartDay(Number(e.target.value))} className="bg-transparent font-bold text-slate-900 outline-none w-full text-center" /><span className="text-xs text-slate-400 ml-1">號</span></div></div></div>
                                 <div className="mb-6"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">類別管理</label><div className="grid grid-cols-2 gap-3"><button onClick={() => openManageCategories('expense')} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center gap-2"><div className="bg-orange-100 p-2 rounded-full text-orange-600"><Icons.Utensils size={20}/></div><span className="font-bold text-slate-700 text-sm">支出類別</span></button><button onClick={() => openManageCategories('income')} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center gap-2"><div className="bg-green-100 p-2 rounded-full text-green-600"><Icons.Briefcase size={20}/></div><span className="font-bold text-slate-700 text-sm">收入類別</span></button></div></div>
                                 <div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">帳戶列表</label><button onClick={openAddAccount} className="text-xs font-bold text-blue-600 flex items-center gap-1"><Icons.Plus size={14}/> 新增</button></div>
                                 <div className="space-y-3 pb-6">{accounts.map((acc, index) => { const Icon = getAccountIcon(acc.type); return <div key={acc.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 shadow-sm"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${getAccountColor(acc.type)}`}><Icon size={18}/></div><div><p className="font-bold text-slate-900 text-sm">{acc.name}</p><p className="text-xs text-slate-400">${acc.initialBalance}</p></div></div><div className="flex gap-2"><div className="flex flex-col gap-1 mr-2"><button onClick={() => handleMoveAccount(index, 'up')} className="p-1 text-slate-400"><Icons.ArrowUp size={14}/></button><button onClick={() => handleMoveAccount(index, 'down')} className="p-1 text-slate-400"><Icons.ArrowDown size={14}/></button></div><button onClick={() => openEditAccount(acc)} className="p-2 text-slate-400"><Icons.Edit2 size={14}/></button><button onClick={() => handleDeleteAccount(acc.id)} className="p-2 text-red-300"><Icons.Trash2 size={14}/></button></div></div> })}</div>
                             </div>
                         )}
+                        
+                        {/* VIEW: Edit/Add Account */}
+                        {view === 'edit_account' && (
+                             <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">{editingAccountId ? '編輯帳戶' : '新增帳戶'}</h2><button onClick={() => setView('manage_accounts')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="flex gap-2 mb-6"><button onClick={() => setAccountForm({...accountForm, type:'cash'})} className={`flex-1 py-3 rounded-xl font-bold border transition-all ${accountForm.type==='cash'?'border-slate-900 bg-slate-900 text-white':'border-slate-200 text-slate-400'}`}>現金</button><button onClick={() => setAccountForm({...accountForm, type:'bank'})} className={`flex-1 py-3 rounded-xl font-bold border transition-all ${accountForm.type==='bank'?'border-blue-600 bg-blue-600 text-white':'border-slate-200 text-slate-400'}`}>銀行</button><button onClick={() => setAccountForm({...accountForm, type:'credit'})} className={`flex-1 py-3 rounded-xl font-bold border transition-all ${accountForm.type==='credit'?'border-indigo-600 bg-indigo-600 text-white':'border-slate-200 text-slate-400'}`}>信用卡</button></div>
+                                <div className="space-y-4">
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">帳戶名稱</label><input type="text" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="例如: 薪轉戶" value={accountForm.name} onChange={(e) => setAccountForm({...accountForm, name: e.target.value})} /></div>
+                                    {accountForm.type !== 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">初始餘額</label><input type="number" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="0" value={accountForm.initialBalance} onChange={(e) => setAccountForm({...accountForm, initialBalance: e.target.value})} /></div>}
+                                    {accountForm.type === 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">信用額度</label><input type="number" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="0" value={accountForm.creditLimit} onChange={(e) => setAccountForm({...accountForm, creditLimit: e.target.value})} /></div>}
+                                    {accountForm.type === 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">結帳日 (每月)</label><input type="number" min="1" max="28" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="1" value={accountForm.billingStartDay} onChange={(e) => setAccountForm({...accountForm, billingStartDay: e.target.value})} /></div>}
+                                </div>
+                                <button onClick={handleSaveAccount} className="mt-auto w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg shadow-xl mb-4">儲存設定</button>
+                            </div>
+                        )}
 
-                        {/* ... Re-include other views (budget_detail, account_detail, recurring_detail, manage_categories, etc.) from previous reliable version ... */}
-                        {/* Note: For brevity in this fix block, I ensured the critical missing icons and API key logic are present. The full structure assumes the previous view logic is retained. */}
+                        {/* VIEW: Manage Categories */}
+                        {view === 'manage_categories' && (
+                            <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">{manageCategoryType === 'expense' ? '支出' : '收入'}類別</h2><button onClick={() => setView('manage_accounts')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="space-y-3 pb-6">
+                                    {(manageCategoryType === 'expense' ? expenseCategories : incomeCategories).map((cat, index) => {
+                                        const CatIcon = Icons[cat.icon] || Icons.Circle;
+                                        return <div key={cat.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-white shadow-sm"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${cat.color} bg-opacity-20`}><CatIcon size={20}/></div><span className="font-bold text-slate-700">{cat.name}</span></div><div className="flex gap-1"><button onClick={() => handleMoveCategory(index, 'up')} className="p-2 text-slate-300 hover:text-slate-600"><Icons.ArrowUp size={16}/></button><button onClick={() => handleMoveCategory(index, 'down')} className="p-2 text-slate-300 hover:text-slate-600"><Icons.ArrowDown size={16}/></button><button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-red-300 hover:text-red-500"><Icons.Trash2 size={16}/></button></div></div>
+                                    })}
+                                    <button onClick={openAddCategory} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all"><Icons.Plus size={20}/> 新增類別</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: Add Category */}
+                        {view === 'add_category' && (
+                            <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">新增類別</h2><button onClick={() => setView('manage_categories')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="mb-6"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">類別名稱</label><input type="text" autoFocus className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="例如: 遊戲" value={categoryForm.name} onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})} /></div>
+                                <div className="mb-6"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">選擇圖示</label><div className="grid grid-cols-6 gap-2 bg-slate-50 p-4 rounded-xl max-h-48 overflow-y-auto">{ICON_CHOICES.map(iconName => { const I = Icons[iconName]; return <button key={iconName} onClick={() => setCategoryForm({...categoryForm, icon: iconName})} className={`aspect-square rounded-lg flex items-center justify-center transition-all ${categoryForm.icon === iconName ? 'bg-slate-900 text-white shadow-lg scale-110' : 'text-slate-400 hover:bg-white hover:shadow'}`}><I size={20}/></button> })}</div></div>
+                                <div className="mb-6"><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">選擇顏色</label><div className="grid grid-cols-6 gap-2 bg-slate-50 p-4 rounded-xl">{COLOR_CHOICES.map(c => <button key={c} onClick={() => setCategoryForm({...categoryForm, color: c})} className={`aspect-square rounded-full flex items-center justify-center transition-all ${categoryForm.color === c ? 'ring-2 ring-offset-2 ring-slate-900 scale-110' : 'hover:scale-110'}`}><div className={`w-full h-full rounded-full ${c.split(' ')[0]}`}></div></button>)}</div></div>
+                                <button onClick={handleAddCategory} className="mt-auto w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg shadow-xl mb-4">確認新增</button>
+                            </div>
+                        )}
+
+                        {/* VIEW: Account Detail */}
+                        {view === 'account_detail' && selectedAccountForDetail && (
+                            <div className="h-full bg-white flex flex-col p-0 animate-in slide-in-from-right duration-200 safe-area-bottom">
+                                <div className={`p-6 pb-8 ${getAccountColor(selectedAccountForDetail.type)} rounded-b-3xl shadow-lg z-10 relative`}>
+                                    <div className="flex justify-between items-start mb-4"><button onClick={() => setView('home')} className="p-2 bg-white/20 rounded-full text-white backdrop-blur-sm"><Icons.ChevronLeft size={20} /></button><button onClick={() => openEditAccount(selectedAccountForDetail)} className="p-2 bg-white/20 rounded-full text-white backdrop-blur-sm"><Icons.Edit2 size={20} /></button></div>
+                                    <div className="flex items-center gap-4 mb-2"><div className="bg-white/20 p-3 rounded-full backdrop-blur-md shadow-inner">{React.createElement(getAccountIcon(selectedAccountForDetail.type), {size: 32})}</div><div><h2 className="text-2xl font-bold opacity-95">{selectedAccountForDetail.name}</h2><p className="opacity-75 text-sm font-medium">餘額明細</p></div></div>
+                                    <h1 className="text-4xl font-black mt-2 tracking-tight">${getAccountBalance(selectedAccountForDetail.id).toLocaleString()}</h1>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4">
+                                    <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
+                                        {['', ...new Set(transactions.filter(t => t.accountId === selectedAccountForDetail.id).map(t => t.date))].sort().reverse().slice(0,5).map(d => <button key={d||'all'} onClick={() => setAccountDetailFilterDate(d)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${accountDetailFilterDate === d ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>{d ? d.slice(5) : '全部'}</button>)}
+                                    </div>
+                                    <div className="space-y-3">
+                                        {transactions.filter(t => t.accountId === selectedAccountForDetail.id && (!accountDetailFilterDate || t.date === accountDetailFilterDate)).sort((a,b) => new Date(b.date+' '+b.time) - new Date(a.date+' '+a.time)).map(t => {
+                                            const cat = getCategoryObj(t.category, t.type);
+                                            const isExp = t.type === 'expense';
+                                            return <div key={t.id} onClick={() => openEditTransaction(t)} className="flex items-center justify-between p-3 bg-white border border-slate-50 rounded-xl hover:bg-slate-50 transition-colors"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${cat.color} bg-opacity-10 text-opacity-100`}><cat.iconComp size={18}/></div><div><p className="font-bold text-slate-900 text-sm">{t.title}</p><p className="text-xs text-slate-400">{t.date} {t.time}</p></div></div><span className={`font-bold ${isExp ? 'text-slate-900' : 'text-green-600'}`}>{isExp ? '-' : '+'}{t.amount}</span></div>
+                                        })}
+                                        {transactions.filter(t => t.accountId === selectedAccountForDetail.id).length === 0 && <div className="text-center py-10 text-slate-300 font-bold">尚無交易紀錄</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: Budget Detail */}
+                        {view === 'budget_detail' && (
+                            <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">預算詳情</h2><button onClick={() => setView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="mb-8 text-center">
+                                    <div className="w-48 h-48 mx-auto relative flex items-center justify-center mb-4">
+                                        <svg className="w-full h-full rotate-[-90deg]" viewBox="0 0 36 36"><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f1f5f9" strokeWidth="3" /><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={budgetUsed > budgetLimit ? '#ef4444' : '#0f172a'} strokeWidth="3" strokeDasharray={`${Math.min((budgetUsed / budgetLimit) * 100, 100)}, 100`} className="transition-all duration-1000 ease-out" /></svg>
+                                        <div className="absolute flex flex-col items-center"><span className="text-sm text-slate-400 font-bold uppercase">剩餘</span><span className={`text-3xl font-black ${(budgetLimit - budgetUsed) < 0 ? 'text-red-500' : 'text-slate-900'}`}>${(budgetLimit - budgetUsed).toLocaleString()}</span></div>
+                                    </div>
+                                    <p className="text-sm text-slate-500 font-bold">總預算 ${budgetLimit.toLocaleString()} / 已用 ${Math.round(budgetUsed).toLocaleString()}</p>
+                                </div>
+                                <h3 className="font-bold text-slate-900 mb-4">本期支出排行</h3>
+                                <div className="space-y-3">
+                                    {/* Simplified ranking logic */}
+                                    {(() => {
+                                        const { startStr, endStr } = getCurrentBudgetPeriod(budgetStartDay);
+                                        const relevant = transactions.filter(t => t.type === 'expense' && t.includeInBudget && t.date >= startStr && t.date <= endStr).sort((a,b) => Number(b.amount) - Number(a.amount)).slice(0, 10);
+                                        return relevant.map((t, i) => { const cat = getCategoryObj(t.category, 'expense'); return <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100"><div className="flex items-center gap-3"><span className={`font-bold w-6 text-center ${i<3 ? 'text-yellow-500' : 'text-slate-300'}`}>{i+1}</span><div className={`w-8 h-8 rounded-full flex items-center justify-center ${cat.color} bg-opacity-20`}><cat.iconComp size={14}/></div><span className="font-bold text-slate-700 text-sm truncate max-w-[100px]">{t.title}</span></div><span className="font-bold text-slate-900">${Number(t.amount).toLocaleString()}</span></div> })
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* VIEW: Recurring Detail */}
+                        {view === 'recurring_detail' && (
+                            <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">固定支出管理</h2><button onClick={() => setView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="bg-orange-50 p-6 rounded-3xl mb-6 flex flex-col items-center text-center"><div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-2"><Icons.RefreshCw size={24}/></div><h1 className="text-3xl font-black text-slate-900">${Math.round(monthlyRecurringTotal).toLocaleString()}</h1><p className="text-sm font-bold text-orange-400 uppercase tracking-widest">每月固定支出總額</p></div>
+                                <div className="space-y-3">
+                                    {transactions.filter(t => t.isRecurring && !t.recurringEnded && t.type === 'expense').map(t => {
+                                         const cat = getCategoryObj(t.category, 'expense');
+                                         return <div key={t.id} onClick={() => openEditTransaction(t)} className="flex items-center justify-between p-4 border border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-colors"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${cat.color} bg-opacity-20`}><cat.iconComp size={18}/></div><div><p className="font-bold text-slate-900">{t.title}</p><p className="text-xs text-slate-400 font-bold">每月 ${Number(t.amount).toLocaleString()}</p></div></div><Icons.ChevronRight size={16} className="text-slate-300"/></div>
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW: Installment Detail */}
+                        {view === 'installment_detail' && (
+                            <div className="h-full bg-white flex flex-col p-6 animate-in slide-in-from-right duration-200 safe-area-bottom overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-900">分期付款管理</h2><button onClick={() => setView('home')} className="p-2 bg-slate-100 rounded-full text-slate-600"><Icons.ChevronLeft size={20} /></button></div>
+                                <div className="bg-indigo-50 p-6 rounded-3xl mb-6 flex flex-col items-center text-center"><div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2"><Icons.CreditCard size={24}/></div><h1 className="text-3xl font-black text-slate-900">${Math.round(installmentDebt).toLocaleString()}</h1><p className="text-sm font-bold text-indigo-400 uppercase tracking-widest">剩餘未繳總額</p></div>
+                                <div className="space-y-3">
+                                    {transactions.filter(t => t.installments > 1 && accounts.find(a=>a.id===t.accountId)?.type === 'credit').map(t => {
+                                         const cat = getCategoryObj(t.category, 'expense');
+                                         const now = new Date(); const tDate = new Date(t.date);
+                                         const paid = (now.getFullYear() - tDate.getFullYear()) * 12 + (now.getMonth() - tDate.getMonth());
+                                         const remaining = Math.max(0, t.installments - paid);
+                                         if(remaining <= 0) return null;
+                                         return <div key={t.id} onClick={() => openEditTransaction(t)} className="p-4 border border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-colors"><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center ${cat.color} bg-opacity-20`}><cat.iconComp size={18}/></div><div><p className="font-bold text-slate-900">{t.title}</p><p className="text-xs text-slate-400 font-bold">總額 ${Number(t.amount).toLocaleString()}</p></div></div><span className="bg-indigo-100 text-indigo-600 px-2 py-1 rounded text-xs font-bold">剩 {remaining} 期</span></div><div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full" style={{width: `${(paid/t.installments)*100}%`}}></div></div><div className="flex justify-between mt-1 text-[10px] text-slate-400 font-bold"><span>進度 {paid}/{t.installments}</span><span>每期 ${Math.round(Number(t.amount)/t.installments).toLocaleString()}</span></div></div>
+                                    })}
+                                </div>
+                            </div>
+                        )}
                         
                     </div>
                 </div>
