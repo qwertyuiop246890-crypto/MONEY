@@ -41,7 +41,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- 內建圖示元件 ---
+        // --- 內建圖示元件 (確保所有圖示都已定義) ---
         const IconBase = ({ size = 24, children, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
                 {children}
@@ -111,14 +111,17 @@
 
         // 範例資料
         const getDemoData = () => {
-            const today = new Date();
+             const today = new Date();
             const todayStr = today.toISOString().split('T')[0];
+            
             const yesterday = new Date(today);
             yesterday.setDate(today.getDate() - 1);
             const yesterdayStr = yesterday.toISOString().split('T')[0];
+
             const twoDaysAgo = new Date(today);
             twoDaysAgo.setDate(today.getDate() - 2);
             const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+
             const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             const pastMonthStr = `${today.getFullYear()}-${String(today.getMonth()).padStart(2, '0')}`;
 
@@ -228,6 +231,7 @@
             const [budgetLimit, setBudgetLimit] = useStickyState(30000, 'expense_budget');
             const [budgetStartDay, setBudgetStartDay] = useStickyState(1, 'expense_budget_start_day');
             
+            // Initialization handled in useStickyState
             const [accounts, setAccounts] = useStickyState([], 'expense_accounts');
             const [expenseCategories, setExpenseCategories] = useStickyState(DEFAULT_EXPENSE_CATEGORIES, 'expense_categories_v2');
             const [incomeCategories, setIncomeCategories] = useStickyState(DEFAULT_INCOME_CATEGORIES, 'income_categories_v2');
@@ -293,6 +297,7 @@
                 const account = accounts.find(a => a.id === accId);
                 if (!account) return 0;
                 let balance = Number(account.initialBalance);
+                
                 transactions.filter(t => t.accountId === accId).forEach(t => {
                     const val = Number(t.amount);
                     if (account.type === 'credit') {
