@@ -771,7 +771,22 @@
                                     <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">帳戶名稱</label><input type="text" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="例如: 薪轉戶" value={accountForm.name} onChange={(e) => setAccountForm({...accountForm, name: e.target.value})} /></div>
                                     {accountForm.type !== 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">初始餘額</label><input type="number" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="0" value={accountForm.initialBalance} onChange={(e) => setAccountForm({...accountForm, initialBalance: e.target.value})} /></div>}
                                     {accountForm.type === 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">信用額度</label><input type="number" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="0" value={accountForm.creditLimit} onChange={(e) => setAccountForm({...accountForm, creditLimit: e.target.value})} /></div>}
-                                    {accountForm.type === 'credit' && <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">結帳日 (每月)</label><input type="number" min="1" max="28" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="1" value={accountForm.billingStartDay} onChange={(e) => setAccountForm({...accountForm, billingStartDay: e.target.value})} /></div>}
+                                    
+                                    {/* 統一的起始日設定 */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">
+                                            {accountForm.type === 'credit' ? '週期起始日 (結帳日後一天)' : '月度統計起始日'}
+                                        </label>
+                                        <div className="relative">
+                                            <input type="number" min="1" max="28" className="w-full bg-slate-50 p-4 rounded-xl font-bold text-slate-900 outline-none" placeholder="1" value={accountForm.billingStartDay} onChange={(e) => setAccountForm({...accountForm, billingStartDay: e.target.value})} />
+                                            <span className="absolute right-4 top-4 text-slate-400 font-bold">號</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1 ml-1">
+                                            {accountForm.type === 'credit' 
+                                                ? '例如：結帳日是25號，起始日請設為26號。' 
+                                                : '設定每個月從幾號開始計算新的一月。'}
+                                        </p>
+                                    </div>
                                 </div>
                                 <button onClick={handleSaveAccount} className="mt-auto w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-lg shadow-xl mb-4">儲存設定</button>
                             </div>
@@ -810,6 +825,35 @@
                                     <div className="flex items-center gap-4 mb-2"><div className="bg-white/20 p-3 rounded-full backdrop-blur-md shadow-inner">{React.createElement(getAccountIcon(selectedAccountForDetail.type), {size: 32})}</div><div><h2 className="text-2xl font-bold opacity-95">{selectedAccountForDetail.name}</h2><p className="opacity-75 text-sm font-medium">餘額明細</p></div></div>
                                     <h1 className="text-4xl font-black mt-2 tracking-tight">${getAccountBalance(selectedAccountForDetail.id).toLocaleString()}</h1>
                                 </div>
+                                
+                                {/* 顯示本期統計區塊 */}
+                                {(() => {
+                                    const startDay = selectedAccountForDetail.billingStartDay || 1;
+                                    const { startStr, endStr, display } = getCurrentBudgetPeriod(startDay);
+                                    // 計算本期支出 (僅計算支出，方便核對帳單)
+                                    const cycleExpenses = transactions
+                                        .filter(t => t.accountId === selectedAccountForDetail.id && t.type === 'expense' && t.date >= startStr && t.date <= endStr)
+                                        .reduce((sum, t) => sum + Number(t.amount), 0);
+                                    
+                                    return (
+                                         <div className="px-6 -mt-6 mb-2 relative z-20">
+                                            <div className="bg-white p-4 rounded-xl shadow-lg shadow-slate-200/50 border border-slate-100 flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">
+                                                        本期統計 ({display})
+                                                    </p>
+                                                    <p className="text-sm font-bold text-slate-800">
+                                                         {selectedAccountForDetail.type === 'credit' ? '本期累積消費' : '本期總支出'}
+                                                    </p>
+                                                </div>
+                                                <p className="text-xl font-bold text-slate-900">
+                                                    -${cycleExpenses.toLocaleString()}
+                                                </p>
+                                            </div>
+                                         </div>
+                                    );
+                                })()}
+
                                 <div className="flex-1 overflow-y-auto p-4">
                                     <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
                                         {['', ...new Set(transactions.filter(t => t.accountId === selectedAccountForDetail.id).map(t => t.date))].sort().reverse().slice(0,5).map(d => <button key={d||'all'} onClick={() => setAccountDetailFilterDate(d)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${accountDetailFilterDate === d ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>{d ? d.slice(5) : '全部'}</button>)}
