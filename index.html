@@ -303,7 +303,7 @@
                             accountId: rule.accountId,
                             note: `[週期] ${rule.note}`,
                             installments: 1,
-                            excludeFromBudget: false
+                            excludeFromBudget: rule.excludeFromBudget || false
                         };
                         newTxList.push(newTx);
                         nextDate.setMonth(nextDate.getMonth() + 1);
@@ -949,21 +949,27 @@
             const AddRecurringForm = () => {
                 const [form, setForm] = useState(() => {
                     if (editingRecurring) {
-                        return { ...editingRecurring, nextDueDate: toInputDate(editingRecurring.nextDueDate), remainingCount: editingRecurring.remainingCount === null ? '' : editingRecurring.remainingCount };
+                        return { 
+                            ...editingRecurring, 
+                            nextDueDate: toInputDate(editingRecurring.nextDueDate), 
+                            remainingCount: editingRecurring.remainingCount === null ? '' : editingRecurring.remainingCount,
+                            excludeFromBudget: editingRecurring.excludeFromBudget || false // Add this
+                        };
                     }
-                    return { amount: '', categoryId: 'c11', accountId: accounts[0]?.id, note: '', nextDueDate: toInputDate(), remainingCount: '' };
+                    return { amount: '', categoryId: 'c11', accountId: accounts[0]?.id, note: '', nextDueDate: toInputDate(), remainingCount: '', excludeFromBudget: false }; // Add default
                 });
                 const save = () => { if (!form.amount || !form.note) return; handleUpdateRecurring({ ...form, id: editingRecurring ? editingRecurring.id : undefined, type: 'expense', remainingCount: form.remainingCount === '' ? null : parseInt(form.remainingCount), nextDueDate: new Date(form.nextDueDate).toISOString() }); };
                 return (
                     <div className="fixed inset-0 bg-white z-[60] overflow-y-auto">
                         <div className="flex items-center p-4 border-b"><button onClick={() => setView('recurring_manager')}><X /></button><h2 className="flex-1 text-center font-bold">{editingRecurring ? '編輯週期性帳務' : '新增週期性帳務'}</h2><button onClick={save} className="text-blue-600 font-bold">儲存</button></div>
                         <div className="p-4 space-y-4">
-                            <div><label className="text-xs text-slate-500">金額</label><input type="number" className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} autoFocus /></div>
-                            <div><label className="text-xs text-slate-500">名稱</label><input className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.note} onChange={e => setForm({...form, note: e.target.value})} /></div>
-                            <div><label className="text-xs text-slate-500">首次扣款日期</label><input type="date" className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.nextDueDate} onChange={e => setForm({...form, nextDueDate: e.target.value})} /></div>
-                            <div><label className="text-xs text-slate-500">循環次數 (留空為無限)</label><input type="number" className="w-full p-3 bg-slate-50 rounded-lg mt-1" placeholder="∞" value={form.remainingCount} onChange={e => setForm({...form, remainingCount: e.target.value})} /></div>
-                            <div><label className="text-xs text-slate-500">扣款帳戶</label><select className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.accountId} onChange={e => setForm({...form, accountId: e.target.value})}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-                            <div><label className="text-xs text-slate-500">類別</label><select className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})}>{categories.filter(c => c.type === 'expense').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                             <div><label className="text-xs text-slate-500">金額</label><input type="number" className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} autoFocus /></div>
+                             <div><label className="text-xs text-slate-500">名稱</label><input className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.note} onChange={e => setForm({...form, note: e.target.value})} /></div>
+                             <div><label className="text-xs text-slate-500">首次扣款日期</label><input type="date" className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.nextDueDate} onChange={e => setForm({...form, nextDueDate: e.target.value})} /></div>
+                             <div><label className="text-xs text-slate-500">循環次數 (留空為無限)</label><input type="number" className="w-full p-3 bg-slate-50 rounded-lg mt-1" placeholder="∞" value={form.remainingCount} onChange={e => setForm({...form, remainingCount: e.target.value})} /></div>
+                             <div><label className="text-xs text-slate-500">扣款帳戶</label><select className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.accountId} onChange={e => setForm({...form, accountId: e.target.value})}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                             <div><label className="text-xs text-slate-500">類別</label><select className="w-full p-3 bg-slate-50 rounded-lg mt-1" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})}>{categories.filter(c => c.type === 'expense').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                             <div className="flex items-center p-3 bg-slate-50 rounded-lg mt-1"><input type="checkbox" id="recurExclude" checked={form.excludeFromBudget} onChange={e => setForm({...form, excludeFromBudget: e.target.checked})} className="w-5 h-5 accent-slate-800 mr-3" /><label htmlFor="recurExclude" className="text-sm text-slate-700">不列入月預算</label></div>
                         </div>
                     </div>
                 );
