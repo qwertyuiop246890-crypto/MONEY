@@ -48,7 +48,8 @@
             ArrowRightLeft, Upload, Download, CheckCircle,
             Calendar, DollarSign, ListFilter, Edit2, X, 
             AlertCircle, Target, Filter, Clock, Repeat, Ban,
-            Layers, Tag, CheckSquare, Square, Pencil, AlertTriangle
+            Layers, Tag, CheckSquare, Square, Pencil, AlertTriangle,
+            ArrowUp, ArrowDown
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- 工具函數 ---
@@ -497,6 +498,16 @@
                 });
             };
 
+            const moveAccount = (index, direction) => {
+                const newAccounts = [...accounts];
+                if (direction === 'up' && index > 0) {
+                    [newAccounts[index], newAccounts[index - 1]] = [newAccounts[index - 1], newAccounts[index]];
+                } else if (direction === 'down' && index < newAccounts.length - 1) {
+                    [newAccounts[index], newAccounts[index + 1]] = [newAccounts[index + 1], newAccounts[index]];
+                }
+                setAccounts(newAccounts);
+            };
+
             const handleAddCategory = (newCat) => {
                 setCategories([...categories, { ...newCat, id: generateId() }]);
             };
@@ -531,10 +542,32 @@
                     return;
                 }
 
-                const headers = ['ID,日期時間,類型,金額,帳戶ID,類別,備註,排除預算,對帳確認'];
-                const rows = filteredTransactions.map(t => 
-                `${t.id},${t.date},${t.type},${t.amount},${t.accountId},${categories.find(c=>c.id===t.categoryId)?.name || ''},${t.note || ''},${t.excludeFromBudget?'Yes':'No'},${t.verified?'Yes':'No'}`
-                );
+                // 準備 CSV 標題
+                const headers = ['ID,日期時間,類型,金額,帳戶名稱,類別,備註,排除預算,對帳確認'];
+
+                const typeMapping = {
+                    'expense': '支出',
+                    'income': '收入',
+                    'transfer_out': '轉帳(轉出)',
+                    'transfer_in': '轉帳(轉入)',
+                    'transfer': '轉帳'
+                };
+
+                // 轉換資料列
+                const rows = filteredTransactions.map(t => {
+                    // 找出帳戶名稱 (如果找不到就顯示 Unknown)
+                    const accountName = accounts.find(a => a.id === t.accountId)?.name || 'Unknown Account';
+                    
+                    // 找出類別名稱
+                    const categoryName = categories.find(c => c.id === t.categoryId)?.name || '';
+
+                    // 轉換類型為中文
+                    const typeName = typeMapping[t.type] || t.type;
+
+                    return `${t.id},${t.date},${typeName},${t.amount},${accountName},${categoryName},${t.note || ''},${t.excludeFromBudget?'Yes':'No'},${t.verified?'Yes':'No'}`;
+                });
+
+                // 組合 CSV 內容
                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers, ...rows].join('\n');
                 const link = document.createElement("a");
                 link.setAttribute("href", encodeURI(csvContent));
@@ -560,8 +593,24 @@
                         const cols = row.split(',');
                         if (cols.length < 4) return; // Skip empty rows
 
-                        const [id, date, type, amountStr, accountId, catName, note, excludeStr, verifiedStr] = cols;
+                        // Adjusted for new column order: accountId is now accountName
+                        const [id, date, type, amountStr, accountNameInCSV, catName, note, excludeStr, verifiedStr] = cols;
                         
+                        // Handle Account: Try to find account by name
+                        // If not found, we fallback to first account or keep it as is (which might be an ID if importing old format)
+                        let accountId = accounts.find(a => a.name === accountNameInCSV)?.id;
+                        
+                        // If accountId not found by name, check if it matches an existing ID directly (backward compatibility)
+                        if (!accountId) {
+                            accountId = accounts.find(a => a.id === accountNameInCSV)?.id;
+                        }
+
+                        // If still not found, default to first account to prevent error
+                        if (!accountId) {
+                            accountId = accounts[0]?.id; 
+                        }
+
+                        // Handle Category
                         let categoryId = 'unknown';
                         const existCat = categories.find(c => c.name === catName);
                         if (existCat) {
