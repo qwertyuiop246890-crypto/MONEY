@@ -271,24 +271,37 @@
             const actualBudgetTx = monthTx.filter(t => t.type === 'expense' && !t.excludeFromBudget);
             const actualBudgetUsed = actualBudgetTx.reduce((s, t) => s + t.amount, 0);
 
-            // 計算本月尚未發生但「應」發生的固定支出
-            const pendingRecurringRules = (recurringRules || []).filter(r => {
-                if (!r.active || r.type !== 'expense' || r.excludeFromBudget) return false;
-                const nextDate = safeDate(r.nextDueDate);
-                return nextDate >= firstDay && nextDate <= lastDay;
+            // 計算本月尚未發生但「應」發生的固定支出 (含跨月預覽)
+            const pendingTxList = [];
+            (recurringRules || []).forEach(rule => {
+                if (!rule.active) return;
+                
+                let currentRuleDate = new Date(rule.nextDueDate);
+                // 預估邏輯：從 nextDueDate 開始往後推，只要落在本月檢視範圍內就加入
+                // 限制迴圈次數防止死循環
+                let safety = 0;
+                while(currentRuleDate <= lastDay && safety < 24) { 
+                    if (currentRuleDate >= firstDay) {
+                         pendingTxList.push({
+                            id: `pending-${rule.id}-${currentRuleDate.getTime()}`,
+                            date: currentRuleDate.toISOString(),
+                            type: rule.type,
+                            amount: parseFloat(rule.amount),
+                            categoryId: rule.categoryId,
+                            accountId: rule.accountId,
+                            note: `[預估固定] ${rule.note}`,
+                            isPending: true,
+                            excludeFromBudget: rule.excludeFromBudget
+                        });
+                    }
+                    currentRuleDate.setMonth(currentRuleDate.getMonth() + 1);
+                    safety++;
+                }
             });
-            const pendingBudgetAmount = pendingRecurringRules.reduce((s, r) => s + parseFloat(r.amount), 0);
-            
-            const pendingTxList = pendingRecurringRules.map(r => ({
-                id: `pending-${r.id}`,
-                date: r.nextDueDate,
-                type: r.type,
-                amount: parseFloat(r.amount),
-                categoryId: r.categoryId,
-                accountId: r.accountId,
-                note: `[預估固定] ${r.note}`,
-                isPending: true
-            }));
+
+            // 計算預估的預算金額
+            const pendingBudgetTx = pendingTxList.filter(t => t.type === 'expense' && !t.excludeFromBudget);
+            const pendingBudgetAmount = pendingBudgetTx.reduce((s, t) => s + t.amount, 0);
 
             // 合併顯示列表：實際交易 + 預估固定支出，並依照日期排序 (新到舊)
             const allDisplayTx = [...monthTx, ...pendingTxList].sort((a,b) => safeDate(b.date) - safeDate(a.date));
@@ -436,7 +449,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.5 (Budget Fix)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.6 (Fixed Export & List)</div>
             </div>
         );
 
@@ -872,8 +885,17 @@
             const exportCSV = () => {
                  const typeMap = { 'expense': '支出', 'income': '收入', 'transfer': '轉帳' };
                  
-                 // 1. 既有交易
-                 const realRows = transactions.map(t => {
+                 // 1. 既有交易 (需過濾日期)
+                 const start = safeDate(exportRange.start);
+                 const end = safeDate(exportRange.end);
+                 end.setHours(23, 59, 59, 999); 
+
+                 const realRows = transactions
+                    .filter(t => {
+                        const d = safeDate(t.date);
+                        return d >= start && d <= end;
+                    })
+                    .map(t => {
                      const catName = categories.find(c => c.id === t.categoryId)?.name || '未分類';
                      const accName = accounts.find(a => a.id === t.accountId)?.name || '未知';
                      const typeName = typeMap[t.type] || t.type;
@@ -884,16 +906,12 @@
                  });
 
                  // 2. 範圍內的預估固定支出
-                 const start = safeDate(exportRange.start);
-                 const end = safeDate(exportRange.end);
-                 end.setHours(23, 59, 59, 999); 
-
                  const pendingRows = [];
                  recurringRules.forEach(rule => {
                     if (!rule.active) return;
                     let nextDate = safeDate(rule.nextDueDate);
                     let safety = 0;
-                    while(nextDate <= end && safety < 1000) {
+                    while(nextDate <= end && safety < 24) {
                         if (nextDate >= start) {
                             const catName = categories.find(c => c.id === rule.categoryId)?.name || '未分類';
                             const accName = accounts.find(a => a.id === rule.accountId)?.name || '未知';
