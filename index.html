@@ -51,7 +51,6 @@
                     iElement.setAttribute('height', size);
                     if (className) iElement.setAttribute('class', className);
 
-                    // 安全地清空容器
                     while (containerRef.current.firstChild) {
                         containerRef.current.removeChild(containerRef.current.firstChild);
                     }
@@ -60,8 +59,6 @@
                 }
             }, [iconName, size, className]);
 
-            // key={iconName} 是關鍵：當 icon 改變時，React 會直接換掉這個 span，而不是嘗試更新它
-            // 這避免了 "The node to be removed is not a child of this node" 錯誤
             return <span key={iconName} ref={containerRef} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
         });
 
@@ -103,10 +100,6 @@
             const m = d.getMonth();
             if (startDay === 1) return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59, 999), label: formatMonth(d) };
             
-            // 如果今天是 12/5，起始日是 25，則週期是 11/25 - 12/24
-            // 如果今天是 12/26，起始日是 25，則週期是 12/25 - 1/24
-            // 這裡傳入的 viewDate 已經是 "當前檢視月份" 的 1 號 (由 DashboardView 控制)
-            // 所以我們只需要根據那個月份計算即可
             const start = new Date(y, m, startDay);
             const end = new Date(y, m + 1, startDay - 1, 23, 59, 59, 999);
             return { start, end, label: `${start.getMonth()+1}/${start.getDate()} - ${end.getMonth()+1}/${end.getDate()}` };
@@ -139,7 +132,6 @@
                 let nextDate = new Date(rule.nextDueDate);
                 let count = rule.remainingCount;
 
-                // 檢查是否需產生交易 (下次執行日 <= 現在)
                 while (nextDate <= now && (count === null || count > 0)) {
                     const newTx = {
                         id: generateId(),
@@ -282,8 +274,7 @@
             const actualBudgetTx = monthTx.filter(t => t.type === 'expense' && !t.excludeFromBudget);
             const actualBudgetUsed = actualBudgetTx.reduce((s, t) => s + t.amount, 0);
 
-            // 計算本月尚未發生但「應」發生的固定支出 (含跨月預覽)
-            // 修正：不只是看 nextDueDate，而是要展開所有落在區間內的預估項目
+            // 計算本月尚未發生但「應」發生的固定支出
             const pendingTxList = [];
             (recurringRules || []).forEach(rule => {
                 if (!rule.active) return;
@@ -311,7 +302,7 @@
                 }
             });
 
-            // 計算預估的預算金額 (從展開後的列表計算，修正之前的 Bug)
+            // 計算預估的預算金額
             const pendingBudgetTx = pendingTxList.filter(t => t.type === 'expense' && !t.excludeFromBudget);
             const pendingBudgetAmount = pendingBudgetTx.reduce((s, t) => s + t.amount, 0);
 
@@ -461,7 +452,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.8 (Full Fix)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v3.0 (Full Scrolling & Fixes)</div>
             </div>
         );
 
@@ -921,8 +912,9 @@
             const exportCSV = () => {
                  const typeMap = { 'expense': '支出', 'income': '收入', 'transfer': '轉帳' };
                  
-                 // 1. 既有交易 (需過濾日期)
+                 // 1. 既有交易 (需嚴格過濾日期)
                  const start = safeDate(exportRange.start);
+                 start.setHours(0,0,0,0);
                  const end = safeDate(exportRange.end);
                  end.setHours(23, 59, 59, 999); 
 
@@ -947,7 +939,7 @@
                     if (!rule.active) return;
                     let nextDate = safeDate(rule.nextDueDate);
                     let safety = 0;
-                    while(nextDate <= end && safety < 1000) {
+                    while(nextDate <= end && safety < 1000) { // 限制次數防止無限迴圈，但 1000 次足夠涵蓋多年
                         if (nextDate >= start) {
                             const catName = categories.find(c => c.id === rule.categoryId)?.name || '未分類';
                             const accName = accounts.find(a => a.id === rule.accountId)?.name || '未知';
@@ -957,8 +949,10 @@
                             const tempId = `pending_${rule.id}_${toInputDate(nextDate)}`;
                             pendingRows.push(`${tempId},${toInputDate(nextDate)},${typeName},${rule.amount},${catName},${accName},${cleanNote},否,${includedInBudgetStr}`);
                         }
-                        nextDate = new Date(nextDate); 
-                        nextDate.setMonth(nextDate.getMonth() + 1);
+                        // 確保日期推進，避免死循環
+                        let next = new Date(nextDate);
+                        next.setMonth(next.getMonth() + 1);
+                        nextDate = next;
                         safety++;
                     }
                  });
@@ -997,7 +991,6 @@
 
                             if(acc) {
                                 newTxs.push({
-                                    // 修正 ID 判斷：只要 id 有值就使用，不再限制長度，確保短 ID (如 t1) 能正確覆蓋
                                     id: id && id.trim() ? id.trim() : generateId(),
                                     date: date,
                                     type: type,
@@ -1055,7 +1048,7 @@
 
                     {view === 'add_transaction' && <div className="fixed inset-0 z-40 bg-white"><AddTransactionForm editingTransaction={editingTransaction} setEditingTransaction={setEditingTransaction} accounts={accounts} categories={categories} handleAddTransaction={handleAddTransaction} handleDeleteTransaction={handleDeleteTransaction} setView={setView} /></div>}
                     {view === 'add_recurring' && <div className="fixed inset-0 z-40 bg-white"><AddRecurringForm editingRecurring={editingRecurring} handleUpdateRecurring={handleUpdateRecurring} accounts={accounts} categories={categories} setView={setView} /></div>}
-                    {view === 'account_detail' && <div className="fixed inset-0 z-40 bg-white"><AccountDetail selectedAccount={selectedAccount} accounts={accounts} transactions={transactions} setView={setView} setEditingTransaction={setEditingTransaction} showPrompt={showPrompt} showAlert={showAlert} showConfirm={showConfirm} handleAddTransaction={handleAddTransaction} categories={categories} handleToggleVerified={handleToggleVerified} calculateAccountBalance={calculateAccountBalance} /></div>}
+                    {view === 'account_detail' && <div className="fixed inset-0 z-40 bg-white overflow-y-auto"><AccountDetail selectedAccount={selectedAccount} accounts={accounts} transactions={transactions} setView={setView} setEditingTransaction={setEditingTransaction} showPrompt={showPrompt} showAlert={showAlert} showConfirm={showConfirm} handleAddTransaction={handleAddTransaction} categories={categories} handleToggleVerified={handleToggleVerified} calculateAccountBalance={calculateAccountBalance} /></div>}
                     {view === 'edit_account' && <div className="fixed inset-0 z-40 bg-white"><AccountEditForm initialData={selectedAccount} onClose={() => setView('main')} handleUpdateAccount={handleUpdateAccount} handleDeleteAccount={handleDeleteAccount} /></div>}
                     {view === 'drill_down' && <div className="fixed inset-0 z-40 bg-white"><DrillDownView title={drillDownData?.title} txList={drillDownData?.txList || []} setView={setView} setEditingTransaction={setEditingTransaction} categories={categories} accounts={accounts} handleToggleVerified={handleToggleVerified} /></div>}
                     {view === 'category_manager' && <div className="fixed inset-0 z-40 bg-white"><CategoryManager categories={categories} setCategories={setCategories} setView={setView} showConfirm={showConfirm} /></div>}
