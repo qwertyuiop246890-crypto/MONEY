@@ -35,10 +35,11 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
         
-        // --- Icon Wrapper (穩定修復版) ---
-        const Icon = ({ name, size = 20, className = "" }) => {
+        // --- Icon Wrapper (終極穩定版) ---
+        // 使用 React.memo 和 key 來強制在屬性變更時重建 DOM，避免 React Reconciliation 錯誤
+        const Icon = React.memo(({ name, size = 20, className = "" }) => {
             const iconName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
             const containerRef = useRef(null);
 
@@ -50,14 +51,19 @@
                     iElement.setAttribute('height', size);
                     if (className) iElement.setAttribute('class', className);
 
-                    containerRef.current.innerHTML = '';
+                    // 安全地清空容器
+                    while (containerRef.current.firstChild) {
+                        containerRef.current.removeChild(containerRef.current.firstChild);
+                    }
                     containerRef.current.appendChild(iElement);
                     window.lucide.createIcons({ root: containerRef.current });
                 }
             }, [iconName, size, className]);
 
-            return <span ref={containerRef} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
-        };
+            // key={iconName} 是關鍵：當 icon 改變時，React 會直接換掉這個 span，而不是嘗試更新它
+            // 這避免了 "The node to be removed is not a child of this node" 錯誤
+            return <span key={iconName} ref={containerRef} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
+        });
 
         // --- 工具函數 ---
         const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -96,6 +102,11 @@
             const y = d.getFullYear();
             const m = d.getMonth();
             if (startDay === 1) return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59, 999), label: formatMonth(d) };
+            
+            // 如果今天是 12/5，起始日是 25，則週期是 11/25 - 12/24
+            // 如果今天是 12/26，起始日是 25，則週期是 12/25 - 1/24
+            // 這裡傳入的 viewDate 已經是 "當前檢視月份" 的 1 號 (由 DashboardView 控制)
+            // 所以我們只需要根據那個月份計算即可
             const start = new Date(y, m, startDay);
             const end = new Date(y, m + 1, startDay - 1, 23, 59, 59, 999);
             return { start, end, label: `${start.getMonth()+1}/${start.getDate()} - ${end.getMonth()+1}/${end.getDate()}` };
@@ -229,7 +240,7 @@
             const sign = tx.type === 'income' || tx.type === 'transfer_in' ? '+' : '-';
             
             return (
-                <div className={`flex items-center justify-between p-3 mb-2 rounded-lg shadow-sm border ${isPending ? 'bg-slate-50 border-dashed border-slate-300 opacity-80' : 'bg-white border-slate-100'}`} onClick={!isPending ? onClick : undefined}>
+                <div className={`flex items-center justify-between p-3 mb-2 rounded-lg shadow-sm border ${isPending ? 'bg-slate-50 border-dashed border-slate-300 opacity-80 cursor-pointer' : 'bg-white border-slate-100'}`} onClick={onClick}>
                     <div className="flex items-center gap-3 flex-1">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${isPending ? 'bg-slate-200 text-slate-400' : 'bg-gray-100'}`}>
                             <Icon name={isTransfer ? "ArrowRightLeft" : (cat.icon || 'Tag')} size={18} />
@@ -252,13 +263,13 @@
                         {showCheckbox && !isPending && <button onClick={(e) => { e.stopPropagation(); handleToggleVerified(tx.id); }} className="text-slate-300">
                             {tx.verified ? <Icon name="CheckSquare" className="text-green-500" /> : <Icon name="Square" />}
                         </button>}
+                        {isPending && <Icon name="Edit2" size={14} className="text-slate-300" />}
                     </div>
                 </div>
             );
         };
 
         const DashboardView = ({ transactions, accounts, budget, categories, setView, setDrillDownData, setEditingTransaction, handleToggleVerified, currentViewDate, setCurrentViewDate, setActiveTab, recurringRules }) => {
-            // 修正：使用預算設定的起始日 (resetDay) 來計算當前顯示的日期區間
             const resetDay = (budget.enabled && budget.resetDay) ? parseInt(budget.resetDay) : 1;
             const { start: firstDay, end: lastDay, label: dateLabel } = getAccountCycleRange(currentViewDate, resetDay);
 
@@ -272,18 +283,19 @@
             const actualBudgetUsed = actualBudgetTx.reduce((s, t) => s + t.amount, 0);
 
             // 計算本月尚未發生但「應」發生的固定支出 (含跨月預覽)
+            // 修正：不只是看 nextDueDate，而是要展開所有落在區間內的預估項目
             const pendingTxList = [];
             (recurringRules || []).forEach(rule => {
                 if (!rule.active) return;
                 
                 let currentRuleDate = new Date(rule.nextDueDate);
                 // 預估邏輯：從 nextDueDate 開始往後推，只要落在本月檢視範圍內就加入
-                // 限制迴圈次數防止死循環
                 let safety = 0;
                 while(currentRuleDate <= lastDay && safety < 24) { 
                     if (currentRuleDate >= firstDay) {
                          pendingTxList.push({
                             id: `pending-${rule.id}-${currentRuleDate.getTime()}`,
+                            ruleId: rule.id, // 重要：用於識別關聯的規則
                             date: currentRuleDate.toISOString(),
                             type: rule.type,
                             amount: parseFloat(rule.amount),
@@ -299,7 +311,7 @@
                 }
             });
 
-            // 計算預估的預算金額
+            // 計算預估的預算金額 (從展開後的列表計算，修正之前的 Bug)
             const pendingBudgetTx = pendingTxList.filter(t => t.type === 'expense' && !t.excludeFromBudget);
             const pendingBudgetAmount = pendingBudgetTx.reduce((s, t) => s + t.amount, 0);
 
@@ -449,7 +461,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.6 (Fixed Export & List)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.8 (Full Fix)</div>
             </div>
         );
 
@@ -559,14 +571,15 @@
             const [form, setForm] = useState(editingTransaction ? {
                 ...editingTransaction,
                 id: isPending ? generateId() : editingTransaction.id,
-                date: toInputDateTime(editingTransaction.date)
+                date: toInputDateTime(editingTransaction.date),
+                ruleId: editingTransaction.ruleId // 確保 ruleId 有被帶入
             } : {
                  id: generateId(), type: 'expense', amount: '', date: toInputDateTime(new Date()),
                  categoryId: categories[0]?.id || '', accountId: accounts[0]?.id, toAccountId: accounts[1]?.id,
                  note: '', installments: 1, excludeFromBudget: false, verified: false
             });
 
-            const handleSubmit = () => { if (!form.amount) return; handleAddTransaction({ ...form, amount: parseFloat(form.amount), date: new Date(form.date).toISOString(), installments: parseInt(form.installments) }); };
+            const handleSubmit = () => { if (!form.amount) return; handleAddTransaction({ ...form, amount: parseFloat(form.amount), date: new Date(form.date).toISOString(), installments: parseInt(form.installments) }, form.ruleId); }; // 傳入 ruleId
             return (
                 <div className="fixed inset-0 bg-white z-50 p-4 overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
@@ -782,9 +795,11 @@
                  localStorage.setItem('minTrack_budget', JSON.stringify(budget));
             }, [budget]);
 
-            const handleAddTransaction = (data) => {
+            const handleAddTransaction = (data, ruleId) => {
                  setTransactions(prev => {
                      let newTxs = [...prev];
+                     // 處理 pending 轉正：如果 id 是 pending- 開頭的，就代表是新的一筆
+                     // 我們已經在 Form 裡面處理了 id 的生成，所以這裡只要判斷 id 是否存在即可
                      if (data.id && prev.find(t=>t.id===data.id)) {
                          newTxs = newTxs.map(t => t.id === data.id ? data : t);
                      } else {
@@ -802,6 +817,27 @@
                      }
                      return newTxs;
                  });
+
+                 // 如果是確認週期性交易 (ruleId 存在)，更新規則的下次執行日
+                 if (ruleId) {
+                     setRecurringRules(prev => prev.map(rule => {
+                         if (rule.id === ruleId) {
+                             const nextDate = new Date(rule.nextDueDate);
+                             nextDate.setMonth(nextDate.getMonth() + 1); // 往後推一個月
+                             
+                             let newCount = rule.remainingCount;
+                             if (newCount !== null) newCount = Math.max(0, newCount - 1);
+                             
+                             return {
+                                 ...rule,
+                                 nextDueDate: nextDate.toISOString(),
+                                 remainingCount: newCount
+                             };
+                         }
+                         return rule;
+                     }));
+                 }
+
                  setView('main');
                  setEditingTransaction(null);
             };
@@ -911,7 +947,7 @@
                     if (!rule.active) return;
                     let nextDate = safeDate(rule.nextDueDate);
                     let safety = 0;
-                    while(nextDate <= end && safety < 24) {
+                    while(nextDate <= end && safety < 1000) {
                         if (nextDate >= start) {
                             const catName = categories.find(c => c.id === rule.categoryId)?.name || '未分類';
                             const accName = accounts.find(a => a.id === rule.accountId)?.name || '未知';
@@ -961,6 +997,7 @@
 
                             if(acc) {
                                 newTxs.push({
+                                    // 修正 ID 判斷：只要 id 有值就使用，不再限制長度，確保短 ID (如 t1) 能正確覆蓋
                                     id: id && id.trim() ? id.trim() : generateId(),
                                     date: date,
                                     type: type,
@@ -1033,3 +1070,5 @@
     </script>
 </body>
 </html>
+
+
