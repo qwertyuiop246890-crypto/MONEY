@@ -432,7 +432,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.2 (Add Fixed)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.3 (CSV Updated)</div>
             </div>
         );
 
@@ -861,7 +861,7 @@
             };
 
             const exportCSV = () => {
-                 // 欄位定義: ID, 日期, 類型(中文), 金額, 類別(中文), 帳戶(中文), 備註, 已確認(是/否)
+                 // 欄位定義: ID, 日期, 類型(中文), 金額, 類別(中文), 帳戶(中文), 備註, 已確認(是/否), 納入預算(是/否)
                  const typeMap = { 'expense': '支出', 'income': '收入', 'transfer': '轉帳' };
                  
                  const rows = transactions.map(t => {
@@ -869,14 +869,16 @@
                      const accName = accounts.find(a => a.id === t.accountId)?.name || '未知';
                      const typeName = typeMap[t.type] || t.type;
                      const verifiedStr = t.verified ? '是' : '否';
+                     // 如果 excludeFromBudget 是 true，代表"不"計預算，所以納入預算為"否"
+                     const includedInBudgetStr = t.excludeFromBudget ? '否' : '是';
                      // 處理備註中的逗號，避免破壞 CSV 格式
                      const cleanNote = (t.note || '').replace(/,/g, ' ').replace(/\n/g, ' ');
                      
-                     return `${t.id},${t.date},${typeName},${t.amount},${catName},${accName},${cleanNote},${verifiedStr}`;
+                     return `${t.id},${t.date},${typeName},${t.amount},${catName},${accName},${cleanNote},${verifiedStr},${includedInBudgetStr}`;
                  });
                  
                  // 中文 Header
-                 const header = "ID,日期,類型,金額,類別,帳戶,備註,已確認";
+                 const header = "ID,日期,類型,金額,類別,帳戶,備註,已確認,納入預算";
                  // 加入 BOM \uFEFF 讓 Excel 能正確識別 UTF-8 中文
                  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [header, ...rows].join('\n');
                  const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = `記帳資料_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click();
@@ -903,16 +905,20 @@
                             if(!line) continue;
                             const cols = line.split(',');
                             
-                            // 預期至少 8 個欄位
+                            // 預期至少 9 個欄位 (為了相容舊版 CSV，如果是 8 個也可以接受，第9個預設為是)
                             if(cols.length < 8) continue; 
                             
-                            const [id, date, typeName, amount, catName, accName, note, verifiedStr] = cols;
+                            // 讀取第 9 個欄位: includedInBudgetStr
+                            const [id, date, typeName, amount, catName, accName, note, verifiedStr, includedInBudgetStr] = cols;
                             
                             // 轉換回系統代碼
                             const type = typeMapRev[typeName] || 'expense'; // 預設支出防呆
                             const cat = categories.find(c => c.name === catName);
                             const acc = accounts.find(a => a.name === accName);
                             
+                            // 判斷是否排除預算：如果 CSV 寫 "否"，則 excludeFromBudget = true
+                            const isExcluded = includedInBudgetStr ? (includedInBudgetStr.trim() === '否') : false;
+
                             if(acc) {
                                 newTxs.push({
                                     id: id && id.length > 5 ? id : generateId(),
@@ -924,7 +930,7 @@
                                     note: note,
                                     verified: verifiedStr === '是',
                                     installments: 1, 
-                                    excludeFromBudget: false
+                                    excludeFromBudget: isExcluded
                                 });
                             }
                         }
