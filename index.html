@@ -24,6 +24,11 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         input, select, textarea { font-size: 16px !important; }
+        /* 增加預算條的斜線紋理，表示預估 */
+        .bg-striped {
+            background-image: linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent);
+            background-size: 1rem 1rem;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -32,14 +37,28 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
         
-        // --- Icon Wrapper (自動轉換駝峰命名為 kebab-case 以支援 Lucide) ---
+        // --- Icon Wrapper (穩定修復版) ---
+        // 使用 span 作為容器，讓 React 控制 span，Lucide 控制 span 內部的內容
+        // 這樣可以避免 React 試圖移除已經被 Lucide 替換掉的元素而崩潰
         const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            });
-            // 將 PascalCase (如 ChevronLeft) 轉為 kebab-case (如 chevron-left)
             const iconName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-            return <i data-lucide={iconName} width={size} height={size} className={className}></i>;
+            const containerRef = useRef(null);
+
+            useEffect(() => {
+                if (window.lucide && containerRef.current) {
+                    const iElement = document.createElement('i');
+                    iElement.setAttribute('data-lucide', iconName);
+                    iElement.setAttribute('width', size);
+                    iElement.setAttribute('height', size);
+                    if (className) iElement.setAttribute('class', className);
+
+                    containerRef.current.innerHTML = '';
+                    containerRef.current.appendChild(iElement);
+                    window.lucide.createIcons({ root: containerRef.current });
+                }
+            }, [iconName, size, className]);
+
+            return <span ref={containerRef} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
         };
 
         // --- 工具函數 ---
@@ -51,14 +70,11 @@
         const formatMonth = (date) => {
             try { return date.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' }); } catch(e) { return ''; }
         };
-        
-        // 安全日期轉換
         const safeDate = (iso) => {
             if (!iso) return new Date();
             const d = new Date(iso);
             return isNaN(d.getTime()) ? new Date() : d;
         };
-
         const formatDateTime = (iso) => safeDate(iso).toLocaleString('zh-TW', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
         const toInputDate = (iso) => safeDate(iso).toISOString().split('T')[0];
         const toInputDateTime = (iso) => {
@@ -86,13 +102,6 @@
             const end = new Date(y, m + 1, startDay - 1, 23, 59, 59, 999);
             return { start, end, label: `${start.getMonth()+1}/${start.getDate()} - ${end.getMonth()+1}/${end.getDate()}` };
         };
-        const toLocalInputDate = (date) => {
-            const d = safeDate(date);
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
 
         const calculateAccountBalance = (account, transactions) => {
             if (!account || !transactions) return 0;
@@ -109,7 +118,7 @@
             return balance;
         };
 
-        // --- 核心邏輯：處理週期性帳務產生 (全域) ---
+        // --- 核心邏輯：處理週期性帳務產生 ---
         const processRules = (rules, currentTxs) => {
             const now = new Date();
             let newTxList = [...currentTxs];
@@ -135,10 +144,7 @@
                         excludeFromBudget: rule.excludeFromBudget || false 
                     };
                     newTxList.push(newTx);
-                    
-                    // 更新下一次日期 (預設 +1 月)
                     nextDate.setMonth(nextDate.getMonth() + 1);
-                    
                     if (count !== null) count--;
                     hasUpdates = true;
                     ruleUpdated = true;
@@ -198,7 +204,7 @@
                                 {type === 'prompt' && <Icon name="Edit2" className="text-blue-500" size={40} />}
                             </div>
                             <h3 className="font-bold text-lg text-slate-800 mb-2">{title}</h3>
-                            <p className="text-sm text-slate-500 mb-4">{message}</p>
+                            <p className="text-sm text-slate-500 mb-4 whitespace-pre-line">{message}</p>
                             {type === 'prompt' && <input type="number" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold text-lg" value={inputValue} onChange={(e) => setInputValue(e.target.value)} autoFocus />}
                             <div className="flex gap-2 justify-center">
                                 {type !== 'alert' && <button onClick={onCancel} className="flex-1 py-3 px-4 rounded-xl bg-slate-100 text-slate-600 font-bold active:bg-slate-200 transition-colors">取消</button>}
@@ -217,7 +223,7 @@
             </div>
         );
 
-        const TransactionItem = ({ tx, onClick, categories, accounts, handleToggleVerified, showCheckbox }) => {
+        const TransactionItem = ({ tx, onClick, categories, accounts, handleToggleVerified, showCheckbox, isPending = false }) => {
             const cat = categories.find(c => c.id === tx.categoryId) || {};
             const acc = accounts.find(a => a.id === tx.accountId) || {};
             const isTransfer = tx.type.includes('transfer');
@@ -225,9 +231,9 @@
             const sign = tx.type === 'income' || tx.type === 'transfer_in' ? '+' : '-';
             
             return (
-                <div className="flex items-center justify-between p-3 bg-white mb-2 rounded-lg shadow-sm border border-slate-100" onClick={onClick}>
+                <div className={`flex items-center justify-between p-3 mb-2 rounded-lg shadow-sm border ${isPending ? 'bg-slate-50 border-dashed border-slate-300 opacity-80' : 'bg-white border-slate-100'}`} onClick={!isPending ? onClick : undefined}>
                     <div className="flex items-center gap-3 flex-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl bg-gray-100`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${isPending ? 'bg-slate-200 text-slate-400' : 'bg-gray-100'}`}>
                             <Icon name={isTransfer ? "ArrowRightLeft" : (cat.icon || 'Tag')} size={18} />
                         </div>
                         <div>
@@ -235,16 +241,17 @@
                                 {isTransfer ? '轉帳' : (cat.name || '未分類')}
                                 {tx.installments > 1 && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded">分期</span>}
                                 {tx.excludeFromBudget && <span className="text-[10px] bg-gray-200 text-gray-500 px-1 rounded">不計預算</span>}
+                                {isPending && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1 rounded">預估</span>}
                             </div>
                             <div className="text-xs text-slate-500">
-                                {safeDate(tx.date).toLocaleDateString()} • {acc.name}
+                                {safeDate(tx.date).toLocaleDateString()} • {acc.name || '預設帳戶'}
                                 {tx.note && <span className="ml-1 text-slate-400">({tx.note})</span>}
                             </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className={`font-bold ${color}`}>{sign}{formatCurrency(tx.amount)}</div>
-                        {showCheckbox && <button onClick={(e) => { e.stopPropagation(); handleToggleVerified(tx.id); }} className="text-slate-300">
+                        {showCheckbox && !isPending && <button onClick={(e) => { e.stopPropagation(); handleToggleVerified(tx.id); }} className="text-slate-300">
                             {tx.verified ? <Icon name="CheckSquare" className="text-green-500" /> : <Icon name="Square" />}
                         </button>}
                     </div>
@@ -259,9 +266,33 @@
             const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
             const totalAssets = accounts.reduce((acc, cur) => acc + calculateAccountBalance(cur, transactions), 0);
             
-            const budgetTx = monthTx.filter(t => t.type === 'expense' && !t.excludeFromBudget);
-            const budgetUsed = budgetTx.reduce((s, t) => s + t.amount, 0);
-            const budgetPct = budget.amount > 0 ? Math.min((budgetUsed / budget.amount) * 100, 100) : 0;
+            // --- 預算計算：實際 + 預估 ---
+            const actualBudgetTx = monthTx.filter(t => t.type === 'expense' && !t.excludeFromBudget);
+            const actualBudgetUsed = actualBudgetTx.reduce((s, t) => s + t.amount, 0);
+
+            // 計算本月尚未發生但「應」發生的固定支出
+            const pendingRecurringRules = (recurringRules || []).filter(r => {
+                if (!r.active || r.type !== 'expense' || r.excludeFromBudget) return false;
+                const nextDate = safeDate(r.nextDueDate);
+                return nextDate >= firstDay && nextDate <= lastDay;
+            });
+            const pendingBudgetAmount = pendingRecurringRules.reduce((s, r) => s + parseFloat(r.amount), 0);
+            
+            const pendingTxList = pendingRecurringRules.map(r => ({
+                id: `pending-${r.id}`,
+                date: r.nextDueDate,
+                type: r.type,
+                amount: parseFloat(r.amount),
+                categoryId: r.categoryId,
+                accountId: r.accountId,
+                note: `[預估固定] ${r.note}`,
+                isPending: true
+            }));
+
+            const totalBudgetUsed = actualBudgetUsed + pendingBudgetAmount;
+            const totalPct = budget.amount > 0 ? Math.min((totalBudgetUsed / budget.amount) * 100, 100) : 0;
+            const actualPct = budget.amount > 0 ? Math.min((actualBudgetUsed / budget.amount) * 100, 100) : 0;
+            const pendingPct = totalPct - actualPct; 
 
             const creditIds = accounts.filter(a => a.type === 'credit').map(a => a.id);
             const creditUsed = monthTx.filter(t => t.type === 'expense' && creditIds.includes(t.accountId)).reduce((s, t) => s + t.amount, 0);
@@ -284,15 +315,27 @@
                     </div>
 
                     {budget.enabled && (
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200" onClick={() => { setDrillDownData({title: '本月預算明細', txList: budgetTx}); setView('drill_down'); }}>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200" onClick={() => { 
+                            setDrillDownData({title: '本月預算明細 (含預估)', txList: [...actualBudgetTx, ...pendingTxList]}); 
+                            setView('drill_down'); 
+                        }}>
                             <div className="flex justify-between mb-2">
                                 <span className="font-bold text-slate-700">本月預算</span>
-                                <span className={budget.amount - budgetUsed < 0 ? 'text-red-500 font-bold' : 'text-green-600 font-bold'}>剩餘 {formatCurrency(budget.amount - budgetUsed)}</span>
+                                <span className={budget.amount - totalBudgetUsed < 0 ? 'text-red-500 font-bold' : 'text-green-600 font-bold'}>剩餘 {formatCurrency(budget.amount - totalBudgetUsed)}</span>
                             </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className={`h-full ${budgetPct > 90 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${budgetPct}%`}}></div>
+                            <div className="h-4 bg-slate-100 rounded-full overflow-hidden relative flex">
+                                <div className={`h-full ${actualPct > 90 ? 'bg-red-500' : 'bg-blue-600'} transition-all duration-500`} style={{width: `${actualPct}%`}}></div>
+                                <div className="h-full bg-blue-300 bg-striped transition-all duration-500" style={{width: `${pendingPct}%`}}></div>
                             </div>
-                            <div className="text-xs text-right mt-1 text-slate-400">{formatCurrency(budgetUsed)} / {formatCurrency(budget.amount)}</div>
+                            <div className="flex justify-between items-start mt-2">
+                                <div className="text-[11px] text-slate-500 flex flex-col gap-1">
+                                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-600"></div>實際: {formatCurrency(actualBudgetUsed)}</span>
+                                    {pendingBudgetAmount > 0 && <span className="flex items-center gap-1 text-blue-500"><div className="w-2 h-2 rounded-full bg-blue-300"></div>+ 預估固定: {formatCurrency(pendingBudgetAmount)}</span>}
+                                </div>
+                                <div className="text-xs text-right text-slate-400 font-bold mt-auto">
+                                    總計 {formatCurrency(totalBudgetUsed)} / {formatCurrency(budget.amount)}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -306,7 +349,7 @@
                             <div className="font-bold text-blue-600">{formatCurrency(futureInstallments)}</div>
                          </div>
                          <div className="bg-white p-2 rounded-xl border border-slate-200 text-center" onClick={() => setView('recurring_manager')}>
-                            <div className="text-[10px] text-slate-500">每月固定支出</div>
+                            <div className="text-[10px] text-slate-500">固定/週期支出</div>
                             <div className="font-bold text-indigo-600">{formatCurrency(recurringSum)}</div>
                          </div>
                     </div>
@@ -355,7 +398,7 @@
             );
         };
 
-        const SettingsView = ({ setView, exportRange, setExportRange, exportCSV, handleImportCSV, handleResetData, handleExportJSON, handleImportJSON }) => (
+        const SettingsView = ({ setView, exportRange, setExportRange, exportCSV, handleImportCSV, handleExportJSON, handleImportJSON }) => (
             <div className="p-4 space-y-6 pb-24">
                 <h2 className="text-xl font-bold">設定</h2>
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
@@ -366,30 +409,30 @@
                 </div>
                 
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
-                    <h3 className="font-bold mb-4 text-sm text-slate-500 uppercase">完整備份 (建議)</h3>
+                    <h3 className="font-bold mb-4 text-sm text-slate-500 uppercase">完整備份</h3>
                     <div className="space-y-3">
-                        <button onClick={handleExportJSON} className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700"><div className="flex items-center gap-3"><Icon name="Save" className="text-blue-600"/><span>匯出所有資料 (JSON)</span></div><Icon name="Download" size={16} /></button>
+                        <button onClick={handleExportJSON} className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700"><div className="flex items-center gap-3"><Icon name="Save" className="text-blue-600"/><span>匯出備份 (JSON)</span></div><Icon name="Download" size={16} /></button>
                         <div className="relative w-full">
-                            <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700"><div className="flex items-center gap-3"><Icon name="Upload" className="text-orange-600"/><span>匯入還原備份 (JSON)</span></div><Icon name="Upload" size={16} /></button>
+                            <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700"><div className="flex items-center gap-3"><Icon name="Upload" className="text-orange-600"/><span>還原備份 (JSON)</span></div><Icon name="Upload" size={16} /></button>
                             <input type="file" accept=".json" onChange={handleImportJSON} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                         </div>
                     </div>
                 </div>
 
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
-                    <h3 className="font-bold mb-4 text-sm text-slate-500 uppercase">交易明細 (Excel 編輯)</h3>
+                    <h3 className="font-bold mb-4 text-sm text-slate-500 uppercase">交易明細 (電腦編輯)</h3>
+                    <p className="text-xs text-slate-400 mb-3">匯出 CSV 後可在電腦 Excel/Google Sheets 修改，再匯入手機即可更新資料 (ID 相同者會自動覆蓋)。</p>
                     <div className="flex gap-2 mb-3 px-3">
                         <div className="flex-1"><label className="text-[10px] text-slate-400 block mb-1 font-bold">匯出開始日期</label><input type="date" value={exportRange.start} onChange={e => setExportRange({...exportRange, start: e.target.value})} className="w-full p-2 bg-slate-50 rounded-lg text-xs border border-slate-200"/></div>
                         <div className="flex-1"><label className="text-[10px] text-slate-400 block mb-1 font-bold">匯出結束日期</label><input type="date" value={exportRange.end} onChange={e => setExportRange({...exportRange, end: e.target.value})} className="w-full p-2 bg-slate-50 rounded-lg text-xs border border-slate-200"/></div>
                     </div>
-                    <button onClick={exportCSV} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg"><div className="flex items-center gap-3"><Icon name="Download" className="text-blue-500"/><span>匯出交易明細 (CSV)</span></div><Icon name="ChevronRight" className="text-slate-300"/></button>
+                    <button onClick={exportCSV} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg"><div className="flex items-center gap-3"><Icon name="Download" className="text-blue-500"/><span>匯出完整 CSV (中文)</span></div><Icon name="ChevronRight" className="text-slate-300"/></button>
                     <div className="relative w-full">
-                        <button className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg"><div className="flex items-center gap-3"><Icon name="Upload" className="text-green-500"/><span>匯入交易明細 (CSV)</span></div><Icon name="ChevronRight" className="text-slate-300"/></button>
+                        <button className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg"><div className="flex items-center gap-3"><Icon name="Upload" className="text-green-500"/><span>匯入/更新 CSV (中文)</span></div><Icon name="ChevronRight" className="text-slate-300"/></button>
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <button onClick={handleResetData} className="w-full p-4 text-red-500 font-bold bg-white rounded-xl shadow-sm border border-red-100">清除所有資料 (重置)</button>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v1.7 (Stable)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.2 (Add Fixed)</div>
             </div>
         );
 
@@ -484,7 +527,7 @@
                         {Object.entries(grouped).map(([date, txs]) => (
                             <div key={date} className="mb-4">
                                 <div className="text-xs text-slate-500 font-bold mb-2 ml-1">{date}</div>
-                                {txs.map(tx => (<TransactionItem key={tx.id} tx={tx} categories={categories} accounts={accounts} onClick={() => { setEditingTransaction(tx); setView('add_transaction'); }} handleToggleVerified={handleToggleVerified} showCheckbox={true} />))}
+                                {txs.map(tx => (<TransactionItem key={tx.id} tx={tx} categories={categories} accounts={accounts} onClick={() => { setEditingTransaction(tx); setView('add_transaction'); }} handleToggleVerified={handleToggleVerified} showCheckbox={!tx.isPending} isPending={tx.isPending} />))}
                             </div>
                         ))}
                         {sorted.length === 0 && <div className="text-center text-slate-400 py-10">無交易紀錄</div>}
@@ -495,18 +538,24 @@
 
         const AddTransactionForm = ({ editingTransaction, setEditingTransaction, accounts, categories, handleAddTransaction, handleDeleteTransaction, setView }) => {
             const isEdit = !!editingTransaction;
-            const [form, setForm] = useState(editingTransaction || {
+            const isPending = editingTransaction && editingTransaction.isPending;
+            const [form, setForm] = useState(editingTransaction ? {
+                ...editingTransaction,
+                id: isPending ? generateId() : editingTransaction.id,
+                date: toInputDateTime(editingTransaction.date)
+            } : {
                  id: generateId(), type: 'expense', amount: '', date: toInputDateTime(new Date()),
                  categoryId: categories[0]?.id || '', accountId: accounts[0]?.id, toAccountId: accounts[1]?.id,
                  note: '', installments: 1, excludeFromBudget: false, verified: false
             });
+
             const handleSubmit = () => { if (!form.amount) return; handleAddTransaction({ ...form, amount: parseFloat(form.amount), date: new Date(form.date).toISOString(), installments: parseInt(form.installments) }); };
             return (
                 <div className="fixed inset-0 bg-white z-50 p-4 overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
                         <button onClick={() => { setView('main'); setEditingTransaction(null); }}><Icon name="X"/></button>
-                        <h2 className="font-bold">{editingTransaction ? '編輯' : '新增'}交易</h2>
-                        {editingTransaction ? <button onClick={() => handleDeleteTransaction(editingTransaction.id)} className="text-red-500"><Icon name="Trash2"/></button> : <div className="w-5"></div>}
+                        <h2 className="font-bold">{isPending ? '確認週期性交易' : (editingTransaction ? '編輯交易' : '新增交易')}</h2>
+                        {editingTransaction && !isPending ? <button onClick={() => handleDeleteTransaction(editingTransaction.id)} className="text-red-500"><Icon name="Trash2"/></button> : <div className="w-5"></div>}
                     </div>
                     <div className="space-y-4">
                         <div className="flex gap-2">{['expense','income','transfer'].map(t => (<button key={t} onClick={() => setForm({...form, type: t})} className={`flex-1 py-2 rounded-lg border ${form.type === t ? 'bg-slate-900 text-white' : 'bg-white'}`}>{t==='expense'?'支出':t==='income'?'收入':'轉帳'}</button>))}</div>
@@ -686,7 +735,15 @@
                     setAccounts(JSON.parse(localStorage.getItem('minTrack_accounts')) || INITIAL_ACCOUNTS);
                     setCategories(JSON.parse(localStorage.getItem('minTrack_categories')) || INITIAL_CATEGORIES);
                     setBudget(JSON.parse(localStorage.getItem('minTrack_budget')) || INITIAL_BUDGET);
-                    setRecurringRules(JSON.parse(localStorage.getItem('minTrack_recurring')) || INITIAL_RECURRING);
+                    const savedRules = JSON.parse(localStorage.getItem('minTrack_recurring')) || INITIAL_RECURRING;
+                    const savedTxs = JSON.parse(savedTx);
+                    const { rules, txs, hasUpdates } = processRules(savedRules, savedTxs);
+                    if (hasUpdates) {
+                        setRecurringRules(rules);
+                        setTransactions(txs);
+                    } else {
+                        setRecurringRules(savedRules);
+                    }
                 }
             }, []);
 
@@ -697,9 +754,15 @@
                 localStorage.setItem('minTrack_recurring', JSON.stringify(recurringRules));
             }, [transactions, accounts, categories, recurringRules]);
 
+            useEffect(() => {
+                 localStorage.setItem('minTrack_budget', JSON.stringify(budget));
+            }, [budget]);
+
             const handleAddTransaction = (data) => {
                  setTransactions(prev => {
                      let newTxs = [...prev];
+                     // 處理 pending 轉正：如果 id 是 pending- 開頭的，就代表是新的一筆
+                     // 我們已經在 Form 裡面處理了 id 的生成，所以這裡只要判斷 id 是否存在即可
                      if (data.id && prev.find(t=>t.id===data.id)) {
                          newTxs = newTxs.map(t => t.id === data.id ? data : t);
                      } else {
@@ -772,21 +835,130 @@
             
             const handleDeleteRecurring = (id) => showConfirm('刪除', '確定刪除？', () => setRecurringRules(prev => prev.filter(r => r.id !== id)));
 
-            const exportCSV = () => {
-                 const rows = transactions.map(t => `${t.date},${t.type},${t.amount},${t.note || ''}`);
-                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + ["Date,Type,Amount,Note", ...rows].join('\n');
-                 const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = "data.csv"; document.body.appendChild(link); link.click();
+            const handleExportJSON = () => {
+                const data = { transactions, accounts, categories, budget, recurringRules };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
             };
-            const handleImportCSV = () => { showAlert('提示', '匯入功能在精簡版中暫時隱藏以確保穩定'); };
+
+            const handleImportJSON = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if(data.transactions) setTransactions(data.transactions);
+                        if(data.accounts) setAccounts(data.accounts);
+                        if(data.categories) setCategories(data.categories);
+                        if(data.budget) setBudget(data.budget);
+                        if(data.recurringRules) setRecurringRules(data.recurringRules);
+                        showAlert('成功', '資料已還原');
+                    } catch (err) { showAlert('錯誤', '檔案格式不正確'); }
+                };
+                reader.readAsText(file);
+            };
+
+            const exportCSV = () => {
+                 // 欄位定義: ID, 日期, 類型(中文), 金額, 類別(中文), 帳戶(中文), 備註, 已確認(是/否)
+                 const typeMap = { 'expense': '支出', 'income': '收入', 'transfer': '轉帳' };
+                 
+                 const rows = transactions.map(t => {
+                     const catName = categories.find(c => c.id === t.categoryId)?.name || '未分類';
+                     const accName = accounts.find(a => a.id === t.accountId)?.name || '未知';
+                     const typeName = typeMap[t.type] || t.type;
+                     const verifiedStr = t.verified ? '是' : '否';
+                     // 處理備註中的逗號，避免破壞 CSV 格式
+                     const cleanNote = (t.note || '').replace(/,/g, ' ').replace(/\n/g, ' ');
+                     
+                     return `${t.id},${t.date},${typeName},${t.amount},${catName},${accName},${cleanNote},${verifiedStr}`;
+                 });
+                 
+                 // 中文 Header
+                 const header = "ID,日期,類型,金額,類別,帳戶,備註,已確認";
+                 // 加入 BOM \uFEFF 讓 Excel 能正確識別 UTF-8 中文
+                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [header, ...rows].join('\n');
+                 const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = `記帳資料_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click();
+            };
+
+            const handleImportCSV = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split('\n');
+                        const newTxs = [];
+                        let updatedCount = 0;
+                        let createdCount = 0;
+                        
+                        // 反向對應表
+                        const typeMapRev = { '支出': 'expense', '收入': 'income', '轉帳': 'transfer' };
+
+                        // 從第 1 行開始 (跳過 Header)
+                        for(let i=1; i<lines.length; i++) {
+                            const line = lines[i].trim();
+                            if(!line) continue;
+                            const cols = line.split(',');
+                            
+                            // 預期至少 8 個欄位
+                            if(cols.length < 8) continue; 
+                            
+                            const [id, date, typeName, amount, catName, accName, note, verifiedStr] = cols;
+                            
+                            // 轉換回系統代碼
+                            const type = typeMapRev[typeName] || 'expense'; // 預設支出防呆
+                            const cat = categories.find(c => c.name === catName);
+                            const acc = accounts.find(a => a.name === accName);
+                            
+                            if(acc) {
+                                newTxs.push({
+                                    id: id && id.length > 5 ? id : generateId(),
+                                    date: date,
+                                    type: type,
+                                    amount: parseFloat(amount),
+                                    categoryId: cat ? cat.id : (categories[0]?.id || ''),
+                                    accountId: acc.id,
+                                    note: note,
+                                    verified: verifiedStr === '是',
+                                    installments: 1, 
+                                    excludeFromBudget: false
+                                });
+                            }
+                        }
+
+                        if(newTxs.length === 0) return showAlert('錯誤', '找不到有效資料或格式不符');
+
+                        setTransactions(prev => {
+                            const merged = [...prev];
+                            newTxs.forEach(newTx => {
+                                const idx = merged.findIndex(t => t.id === newTx.id);
+                                if(idx >= 0) {
+                                    merged[idx] = newTx; // ID 存在則覆蓋
+                                    updatedCount++;
+                                } else {
+                                    merged.push(newTx); // ID 不存在則新增
+                                    createdCount++;
+                                }
+                            });
+                            return merged;
+                        });
+                        showAlert('匯入成功', `更新: ${updatedCount} 筆\n新增: ${createdCount} 筆`);
+                    } catch (err) { showAlert('錯誤', 'CSV 格式不正確'); console.error(err); }
+                };
+                reader.readAsText(file);
+            };
 
             return (
                 <div className="max-w-md mx-auto bg-slate-50 min-h-screen relative font-sans text-slate-800">
-                    <div className="p-4 flex items-center justify-center bg-white border-b sticky top-0 z-20"><h1 className="font-bold text-lg">極簡記帳 (範例版)</h1></div>
+                    <div className="p-4 flex items-center justify-center bg-white border-b sticky top-0 z-20"><h1 className="font-bold text-lg">極簡記帳 (專業版)</h1></div>
                     <div className="p-4 min-h-[80vh]">
                         {activeTab === 'home' && <DashboardView currentViewDate={currentViewDate} setCurrentViewDate={setCurrentViewDate} transactions={transactions} accounts={accounts} budget={budget} recurringRules={recurringRules} setActiveTab={setActiveTab} setDrillDownData={setDrillDownData} setView={setView} setEditingTransaction={setEditingTransaction} categories={categories} handleToggleVerified={handleToggleVerified} />}
                         {activeTab === 'accounts' && <AccountsList accounts={accounts} setAccounts={setAccounts} transactions={transactions} setView={setView} setSelectedAccount={setSelectedAccount} />}
                         {activeTab === 'stats' && <StatsView statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod} customRange={customRange} setCustomRange={setCustomRange} transactions={transactions} categories={categories} setDrillDownData={setDrillDownData} setView={setView} setEditingTransaction={setEditingTransaction} accounts={accounts} handleToggleVerified={handleToggleVerified} />}
-                        {activeTab === 'settings' && <SettingsView setView={setView} exportRange={exportRange} setExportRange={setExportRange} exportCSV={exportCSV} handleImportCSV={handleImportCSV} />}
+                        {activeTab === 'settings' && <SettingsView setView={setView} exportRange={exportRange} setExportRange={setExportRange} exportCSV={exportCSV} handleImportCSV={handleImportCSV} handleExportJSON={handleExportJSON} handleImportJSON={handleImportJSON} />}
                     </div>
                     <div className="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around items-center p-2 pb-safe z-30">
                         <button onClick={() => setActiveTab('home')} className={`p-2 flex flex-col items-center ${activeTab==='home'?'text-slate-900':'text-slate-400'}`}><Icon name="Home"/><span className="text-[10px]">總覽</span></button>
@@ -799,21 +971,19 @@
                     <CustomDialog isOpen={dialogConfig.isOpen} type={dialogConfig.type} title={dialogConfig.title} message={dialogConfig.message} onConfirm={dialogConfig.onConfirm} onCancel={dialogConfig.onCancel} defaultValue={dialogConfig.defaultValue} />
 
                     {view === 'add_transaction' && <div className="fixed inset-0 z-40 bg-white"><AddTransactionForm editingTransaction={editingTransaction} setEditingTransaction={setEditingTransaction} accounts={accounts} categories={categories} handleAddTransaction={handleAddTransaction} handleDeleteTransaction={handleDeleteTransaction} setView={setView} /></div>}
+                    {view === 'add_recurring' && <div className="fixed inset-0 z-40 bg-white"><AddRecurringForm editingRecurring={editingRecurring} handleUpdateRecurring={handleUpdateRecurring} accounts={accounts} categories={categories} setView={setView} /></div>}
                     {view === 'account_detail' && <div className="fixed inset-0 z-40 bg-white"><AccountDetail selectedAccount={selectedAccount} accounts={accounts} transactions={transactions} setView={setView} setEditingTransaction={setEditingTransaction} showPrompt={showPrompt} showAlert={showAlert} showConfirm={showConfirm} handleAddTransaction={handleAddTransaction} categories={categories} handleToggleVerified={handleToggleVerified} calculateAccountBalance={calculateAccountBalance} /></div>}
                     {view === 'edit_account' && <div className="fixed inset-0 z-40 bg-white"><AccountEditForm initialData={selectedAccount} onClose={() => setView('main')} handleUpdateAccount={handleUpdateAccount} handleDeleteAccount={handleDeleteAccount} /></div>}
                     {view === 'drill_down' && <div className="fixed inset-0 z-40 bg-white"><DrillDownView title={drillDownData?.title} txList={drillDownData?.txList || []} setView={setView} setEditingTransaction={setEditingTransaction} categories={categories} accounts={accounts} handleToggleVerified={handleToggleVerified} /></div>}
                     {view === 'category_manager' && <div className="fixed inset-0 z-40 bg-white"><CategoryManager categories={categories} setCategories={setCategories} setView={setView} showConfirm={showConfirm} /></div>}
                     {view === 'recurring_manager' && <div className="fixed inset-0 z-40 bg-white"><RecurringManager recurringRules={recurringRules} setRecurringRules={setRecurringRules} setView={setView} setEditingRecurring={setEditingRecurring} handleToggleRecurring={handleToggleRecurring} handleDeleteRecurring={handleDeleteRecurring} /></div>}
-                    {view === 'add_recurring' && <div className="fixed inset-0 z-40 bg-white"><AddRecurringForm editingRecurring={editingRecurring} handleUpdateRecurring={handleUpdateRecurring} accounts={accounts} categories={categories} setView={setView} /></div>}
                     {view === 'budget_settings' && <div className="fixed inset-0 z-40 bg-white"><BudgetSettings budget={budget} setBudget={setBudget} setView={setView} /></div>}
                 </div>
             );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(MinimalistTracker));
+        root.render(<MinimalistTracker />);
     </script>
 </body>
 </html>
-
-
