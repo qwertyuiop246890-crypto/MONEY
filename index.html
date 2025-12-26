@@ -38,8 +38,6 @@
         const { useState, useEffect, useRef } = React;
         
         // --- Icon Wrapper (穩定修復版) ---
-        // 使用 span 作為容器，讓 React 控制 span，Lucide 控制 span 內部的內容
-        // 這樣可以避免 React 試圖移除已經被 Lucide 替換掉的元素而崩潰
         const Icon = ({ name, size = 20, className = "" }) => {
             const iconName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
             const containerRef = useRef(null);
@@ -289,6 +287,9 @@
                 isPending: true
             }));
 
+            // 合併顯示列表：實際交易 + 預估固定支出，並依照日期排序 (新到舊)
+            const allDisplayTx = [...monthTx, ...pendingTxList].sort((a,b) => safeDate(b.date) - safeDate(a.date));
+
             const totalBudgetUsed = actualBudgetUsed + pendingBudgetAmount;
             const totalPct = budget.amount > 0 ? Math.min((totalBudgetUsed / budget.amount) * 100, 100) : 0;
             const actualPct = budget.amount > 0 ? Math.min((actualBudgetUsed / budget.amount) * 100, 100) : 0;
@@ -316,7 +317,7 @@
 
                     {budget.enabled && (
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200" onClick={() => { 
-                            setDrillDownData({title: '本月預算明細 (含預估)', txList: [...actualBudgetTx, ...pendingTxList]}); 
+                            setDrillDownData({title: '本月預算明細 (含預估)', txList: allDisplayTx.filter(t => t.type === 'expense' && !t.excludeFromBudget)}); 
                             setView('drill_down'); 
                         }}>
                             <div className="flex justify-between mb-2">
@@ -360,9 +361,9 @@
                     </div>
 
                     <div>
-                        <h3 className="font-bold text-slate-700 mb-2">近期活動</h3>
-                        {monthTx.sort((a,b) => safeDate(b.date) - safeDate(a.date)).slice(0, 10).map(tx => (
-                            <TransactionItem key={tx.id} tx={tx} categories={categories} accounts={accounts} onClick={() => { setEditingTransaction(tx); setView('add_transaction'); }} handleToggleVerified={handleToggleVerified} />
+                        <h3 className="font-bold text-slate-700 mb-2">近期活動 (含預估)</h3>
+                        {allDisplayTx.slice(0, 10).map(tx => (
+                            <TransactionItem key={tx.id} tx={tx} categories={categories} accounts={accounts} onClick={() => { setEditingTransaction(tx); setView('add_transaction'); }} handleToggleVerified={handleToggleVerified} showCheckbox={!tx.isPending} isPending={tx.isPending} />
                         ))}
                     </div>
                 </div>
@@ -432,7 +433,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.3 (CSV Updated)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.4 (Fix Import & List)</div>
             </div>
         );
 
@@ -718,8 +719,15 @@
             const [currentViewDate, setCurrentViewDate] = useState(new Date());
             const [editingRecurring, setEditingRecurring] = useState(null);
             const [statsPeriod, setStatsPeriod] = useState('month'); 
+            
+            // 初始化時設定為當前月份的完整範圍
             const [customRange, setCustomRange] = useState({ start: toInputDate(), end: toInputDate() });
-            const [exportRange, setExportRange] = useState({ start: toInputDate(new Date()), end: toInputDate(new Date()) });
+            const [exportRange, setExportRange] = useState(() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                return { start: toInputDate(start), end: toInputDate(end) };
+            });
 
             const [dialogConfig, setDialogConfig] = useState({ isOpen: false, type: 'confirm', title: '', message: '', onConfirm: () => {}, onCancel: () => {} });
             const showConfirm = (title, message, onConfirm) => { setDialogConfig({ isOpen: true, type: 'confirm', title, message, onConfirm: () => { setDialogConfig(prev => ({...prev, isOpen: false})); onConfirm(); }, onCancel: () => setDialogConfig(prev => ({...prev, isOpen: false})) }); };
@@ -761,8 +769,6 @@
             const handleAddTransaction = (data) => {
                  setTransactions(prev => {
                      let newTxs = [...prev];
-                     // 處理 pending 轉正：如果 id 是 pending- 開頭的，就代表是新的一筆
-                     // 我們已經在 Form 裡面處理了 id 的生成，所以這裡只要判斷 id 是否存在即可
                      if (data.id && prev.find(t=>t.id===data.id)) {
                          newTxs = newTxs.map(t => t.id === data.id ? data : t);
                      } else {
@@ -861,26 +867,47 @@
             };
 
             const exportCSV = () => {
-                 // 欄位定義: ID, 日期, 類型(中文), 金額, 類別(中文), 帳戶(中文), 備註, 已確認(是/否), 納入預算(是/否)
                  const typeMap = { 'expense': '支出', 'income': '收入', 'transfer': '轉帳' };
                  
-                 const rows = transactions.map(t => {
+                 // 1. 既有交易
+                 const realRows = transactions.map(t => {
                      const catName = categories.find(c => c.id === t.categoryId)?.name || '未分類';
                      const accName = accounts.find(a => a.id === t.accountId)?.name || '未知';
                      const typeName = typeMap[t.type] || t.type;
                      const verifiedStr = t.verified ? '是' : '否';
-                     // 如果 excludeFromBudget 是 true，代表"不"計預算，所以納入預算為"否"
                      const includedInBudgetStr = t.excludeFromBudget ? '否' : '是';
-                     // 處理備註中的逗號，避免破壞 CSV 格式
                      const cleanNote = (t.note || '').replace(/,/g, ' ').replace(/\n/g, ' ');
-                     
                      return `${t.id},${t.date},${typeName},${t.amount},${catName},${accName},${cleanNote},${verifiedStr},${includedInBudgetStr}`;
                  });
+
+                 // 2. 範圍內的預估固定支出
+                 const start = safeDate(exportRange.start);
+                 const end = safeDate(exportRange.end);
+                 end.setHours(23, 59, 59, 999); 
+
+                 const pendingRows = [];
+                 recurringRules.forEach(rule => {
+                    if (!rule.active) return;
+                    let nextDate = safeDate(rule.nextDueDate);
+                    let safety = 0;
+                    while(nextDate <= end && safety < 1000) {
+                        if (nextDate >= start) {
+                            const catName = categories.find(c => c.id === rule.categoryId)?.name || '未分類';
+                            const accName = accounts.find(a => a.id === rule.accountId)?.name || '未知';
+                            const typeName = typeMap[rule.type] || rule.type;
+                            const cleanNote = `[預估] ${rule.note}`.replace(/,/g, ' ');
+                            const includedInBudgetStr = rule.excludeFromBudget ? '否' : '是';
+                            const tempId = `pending_${rule.id}_${toInputDate(nextDate)}`;
+                            pendingRows.push(`${tempId},${toInputDate(nextDate)},${typeName},${rule.amount},${catName},${accName},${cleanNote},否,${includedInBudgetStr}`);
+                        }
+                        nextDate = new Date(nextDate); 
+                        nextDate.setMonth(nextDate.getMonth() + 1);
+                        safety++;
+                    }
+                 });
                  
-                 // 中文 Header
                  const header = "ID,日期,類型,金額,類別,帳戶,備註,已確認,納入預算";
-                 // 加入 BOM \uFEFF 讓 Excel 能正確識別 UTF-8 中文
-                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [header, ...rows].join('\n');
+                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [header, ...realRows, ...pendingRows].join('\n');
                  const link = document.createElement("a"); link.href = encodeURI(csvContent); link.download = `記帳資料_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click();
             };
 
@@ -896,32 +923,24 @@
                         let updatedCount = 0;
                         let createdCount = 0;
                         
-                        // 反向對應表
                         const typeMapRev = { '支出': 'expense', '收入': 'income', '轉帳': 'transfer' };
 
-                        // 從第 1 行開始 (跳過 Header)
                         for(let i=1; i<lines.length; i++) {
                             const line = lines[i].trim();
                             if(!line) continue;
                             const cols = line.split(',');
-                            
-                            // 預期至少 9 個欄位 (為了相容舊版 CSV，如果是 8 個也可以接受，第9個預設為是)
                             if(cols.length < 8) continue; 
                             
-                            // 讀取第 9 個欄位: includedInBudgetStr
                             const [id, date, typeName, amount, catName, accName, note, verifiedStr, includedInBudgetStr] = cols;
                             
-                            // 轉換回系統代碼
-                            const type = typeMapRev[typeName] || 'expense'; // 預設支出防呆
+                            const type = typeMapRev[typeName] || 'expense'; 
                             const cat = categories.find(c => c.name === catName);
                             const acc = accounts.find(a => a.name === accName);
-                            
-                            // 判斷是否排除預算：如果 CSV 寫 "否"，則 excludeFromBudget = true
                             const isExcluded = includedInBudgetStr ? (includedInBudgetStr.trim() === '否') : false;
 
                             if(acc) {
                                 newTxs.push({
-                                    id: id && id.length > 5 ? id : generateId(),
+                                    id: id && id.trim() ? id.trim() : generateId(),
                                     date: date,
                                     type: type,
                                     amount: parseFloat(amount),
@@ -942,10 +961,10 @@
                             newTxs.forEach(newTx => {
                                 const idx = merged.findIndex(t => t.id === newTx.id);
                                 if(idx >= 0) {
-                                    merged[idx] = newTx; // ID 存在則覆蓋
+                                    merged[idx] = newTx; 
                                     updatedCount++;
                                 } else {
-                                    merged.push(newTx); // ID 不存在則新增
+                                    merged.push(newTx); 
                                     createdCount++;
                                 }
                             });
