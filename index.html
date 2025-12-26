@@ -113,9 +113,11 @@
                 if (t.accountId === account.id) {
                     if (t.type === 'expense') balance -= amount;
                     if (t.type === 'income') balance += amount;
-                    if (t.type === 'transfer_out') balance -= amount;
+                    // 注意：這裡假設了 type 可能是 'transfer_out'，但下方表單存的是 'transfer'
+                    // 如果你的系統有區分 transfer_out/in，請保持原樣；如果是單一 'transfer' 且依賴帳戶ID判斷：
+                    if (t.type === 'transfer' || t.type === 'transfer_out') balance -= amount;
                 }
-                if (t.toAccountId === account.id && t.type === 'transfer_in') balance += amount;
+                if (t.toAccountId === account.id && (t.type === 'transfer' || t.type === 'transfer_in')) balance += amount;
             });
             return balance;
         };
@@ -452,7 +454,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v3.0 (Full Scrolling & Fixes)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v3.1 (Bug Fixes)</div>
             </div>
         );
 
@@ -480,10 +482,12 @@
             const statementDay = selectedAccount.type === 'credit' ? (selectedAccount.statementDay || 1) : 1;
             const { start, end, label } = getAccountCycleRange(viewDate, statementDay);
 
+            // --- 修正區域：只顯示該帳戶的交易 (過濾掉錯誤的轉入) ---
             const accTx = transactions
-                .filter(t => t.accountId === selectedAccount.id || t.toAccountId === selectedAccount.id)
+                .filter(t => t.accountId === selectedAccount.id || (t.type.includes('transfer') && t.toAccountId === selectedAccount.id))
                 .filter(t => { const d = safeDate(t.date); return d >= start && d <= end; })
                 .sort((a, b) => safeDate(b.date) - safeDate(a.date));
+            // -----------------------------------------------------
 
             const verifiedBalance = accTx.filter(t => t.verified).reduce((sum, t) => { if (t.type === 'expense' || t.type === 'transfer_out') return sum - t.amount; if (t.type === 'income' || t.type === 'transfer_in') return sum + t.amount; return sum; }, 0);
             const currentPeriodNet = accTx.reduce((sum, t) => { if (t.type === 'expense') return sum - t.amount; if (t.type === 'income') return sum + t.amount; if (t.accountId === selectedAccount.id && t.type === 'transfer_out') return sum - t.amount; if (t.toAccountId === selectedAccount.id && t.type === 'transfer_in') return sum + t.amount; return sum; }, 0);
@@ -570,7 +574,25 @@
                  note: '', installments: 1, excludeFromBudget: false, verified: false
             });
 
-            const handleSubmit = () => { if (!form.amount) return; handleAddTransaction({ ...form, amount: parseFloat(form.amount), date: new Date(form.date).toISOString(), installments: parseInt(form.installments) }, form.ruleId); }; // 傳入 ruleId
+            // --- 修正區域：送出前清理非轉帳交易的 toAccountId ---
+            const handleSubmit = () => { 
+                if (!form.amount) return;
+                
+                const submitData = { ...form };
+                // 關鍵修正：如果不是轉帳，強制移除 toAccountId
+                if (submitData.type !== 'transfer') {
+                    delete submitData.toAccountId;
+                }
+
+                handleAddTransaction({ 
+                    ...submitData, 
+                    amount: parseFloat(submitData.amount), 
+                    date: new Date(submitData.date).toISOString(), 
+                    installments: parseInt(submitData.installments) 
+                }, form.ruleId); 
+            };
+            // --------------------------------------------------
+
             return (
                 <div className="fixed inset-0 bg-white z-50 p-4 overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
@@ -1063,5 +1085,4 @@
     </script>
 </body>
 </html>
-
 
