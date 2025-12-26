@@ -258,7 +258,10 @@
         };
 
         const DashboardView = ({ transactions, accounts, budget, categories, setView, setDrillDownData, setEditingTransaction, handleToggleVerified, currentViewDate, setCurrentViewDate, setActiveTab, recurringRules }) => {
-            const { firstDay, lastDay } = getMonthRange(currentViewDate);
+            // 修正：使用預算設定的起始日 (resetDay) 來計算當前顯示的日期區間
+            const resetDay = (budget.enabled && budget.resetDay) ? parseInt(budget.resetDay) : 1;
+            const { start: firstDay, end: lastDay, label: dateLabel } = getAccountCycleRange(currentViewDate, resetDay);
+
             const monthTx = transactions.filter(t => { const d = safeDate(t.date); return d >= firstDay && d <= lastDay; });
             const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
             const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -306,7 +309,7 @@
                 <div className="space-y-4 pb-24">
                     <div className="flex items-center justify-between px-2">
                         <button onClick={() => setCurrentViewDate(new Date(currentViewDate.setMonth(currentViewDate.getMonth() - 1)))} className="p-2 bg-white rounded shadow-sm"><Icon name="ChevronLeft"/></button>
-                        <div className="font-bold text-lg flex items-center gap-2"><Icon name="Calendar"/> {formatMonth(currentViewDate)}</div>
+                        <div className="font-bold text-lg flex items-center gap-2"><Icon name="Calendar"/> {dateLabel}</div>
                         <button onClick={() => setCurrentViewDate(new Date(currentViewDate.setMonth(currentViewDate.getMonth() + 1)))} className="p-2 bg-white rounded shadow-sm"><Icon name="ChevronRight"/></button>
                     </div>
 
@@ -433,7 +436,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.4 (Fix Import & List)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v2.5 (Budget Fix)</div>
             </div>
         );
 
