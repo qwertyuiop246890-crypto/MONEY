@@ -108,7 +108,14 @@
         const calculateAccountBalance = (account, transactions) => {
             if (!account || !transactions) return 0;
             let balance = parseFloat(account.initialBalance || 0);
+            
+            // --- 關鍵修正：只計算日期小於等於「現在」的交易 ---
+            const now = new Date();
+            
             transactions.forEach(t => {
+                // 如果交易日期是未來 (例如下個月的分期付款)，則跳過不計算
+                if (safeDate(t.date) > now) return;
+
                 const amount = parseFloat(t.amount);
                 if (t.accountId === account.id) {
                     if (t.type === 'expense') balance -= amount;
@@ -454,7 +461,7 @@
                         <input type="file" accept=".csv" onChange={handleImportCSV} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                     </div>
                 </div>
-                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v3.1 (Bug Fixes)</div>
+                <div className="text-center text-xs text-slate-300 pt-4">Minimalist Tracker v3.2 (Balance Fix)</div>
             </div>
         );
 
@@ -1085,4 +1092,3 @@
     </script>
 </body>
 </html>
-
