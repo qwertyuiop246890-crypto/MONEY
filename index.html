@@ -3,182 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Moze Clone PWA</title>
+    <title>Moze Clone v0.2</title>
     
-    <!-- React & ReactDOM -->
+    <!-- React & Related -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Icons (Lucide via CDN) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Tailwind Config for Mobile -->
+    <!-- SQL.js (SQLite for Browser) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#007AFF', // iOS Blue
-                        secondary: '#5AC8FA',
-                        success: '#34C759', // iOS Green
-                        danger: '#FF3B30', // iOS Red
-                        background: '#F2F2F7', // iOS System Gray 6
-                        surface: '#FFFFFF',
-                        text: '#1C1C1E',
+                        primary: '#007AFF', secondary: '#5AC8FA', success: '#34C759', 
+                        danger: '#FF3B30', background: '#F2F2F7', surface: '#FFFFFF', text: '#1C1C1E',
                     },
-                    boxShadow: {
-                        'ios': '0 2px 8px rgba(0, 0, 0, 0.04)',
-                        'nav': '0 -1px 0 rgba(0, 0, 0, 0.1)',
-                    }
+                    boxShadow: { 'ios': '0 2px 8px rgba(0, 0, 0, 0.04)' }
                 }
             }
         }
     </script>
-
     <style>
-        /* iOS-like fluid scrolling and safe areas */
-        body {
-            -webkit-tap-highlight-color: transparent;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #F2F2F7;
-        }
-        .safe-bottom {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        /* Hide scrollbar but keep functionality */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        body { -webkit-tap-highlight-color: transparent; background-color: #F2F2F7; font-family: -apple-system, sans-serif; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useCallback, useRef } = React;
 
-        // --- 1. 資料模擬層 (Mock Data / Storage Layer) ---
-        // 在下一階段，這裡會被 SQLite 和 GitHub API 取代
-        
-        const initialAccounts = [
-            { id: '1', name: '錢包現金', type: 'cash', balance: 5000, currency: 'TWD' },
-            { id: '2', name: '中國信託', type: 'bank', balance: 125000, currency: 'TWD' },
-            { id: '3', name: '台新 @GoGo', type: 'credit', balance: -4500, limit: 100000, currency: 'TWD' },
-        ];
+        // --- 1. 資料庫核心服務 (DB Service) ---
+        // 負責處理所有 SQL 邏輯與 GitHub API 通訊
 
-        const initialCategories = [
-            { id: 'c1', name: '餐飲', icon: 'utensils', type: 'expense' },
-            { id: 'c2', name: '交通', icon: 'bus', type: 'expense' },
-            { id: 'c3', name: '購物', icon: 'shopping-bag', type: 'expense' },
-            { id: 'c4', name: '薪資', icon: 'banknote', type: 'income' },
-        ];
+        const DB_FILE_NAME = 'finance.sqlite';
 
-        // --- 2. 元件 (Components) ---
+        const DBService = {
+            db: null,
+            SQL: null,
 
-        // icon helper
+            // 初始化：載入 sql.js 並嘗試讀取本地快取
+            async init() {
+                if (this.db) return;
+                const config = { locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}` };
+                this.SQL = await initSqlJs(config);
+                
+                // 嘗試從 LocalStorage 恢復
+                const saved = localStorage.getItem('moze_db_cache');
+                if (saved) {
+                    const u8 = new Uint8Array(saved.split(',').map(Number));
+                    this.db = new this.SQL.Database(u8);
+                } else {
+                    this.db = new this.SQL.Database();
+                    this.initTables();
+                    this.seedData(); // 首次使用寫入預設資料
+                }
+                this.saveToLocal();
+            },
+
+            initTables() {
+                this.db.run(`
+                    CREATE TABLE IF NOT EXISTS accounts (
+                        id TEXT PRIMARY KEY, name TEXT, type TEXT, balance REAL, limit_amount REAL, currency TEXT
+                    );
+                    CREATE TABLE IF NOT EXISTS transactions (
+                        id TEXT PRIMARY KEY, date TEXT, type TEXT, amount REAL, 
+                        account_id TEXT, category_id TEXT, note TEXT, created_at INTEGER
+                    );
+                    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+                `);
+            },
+
+            seedData() {
+                // 預設帳戶
+                this.db.run(`INSERT INTO accounts VALUES ('acc_1', '現金錢包', 'cash', 2000, 0, 'TWD')`);
+                this.db.run(`INSERT INTO accounts VALUES ('acc_2', '中國信託', 'bank', 50000, 0, 'TWD')`);
+                this.db.run(`INSERT INTO accounts VALUES ('acc_3', '信用卡', 'credit', -1200, 100000, 'TWD')`);
+            },
+
+            // 執行 SQL 並儲存到本地快取
+            run(sql, params = []) {
+                const res = this.db.run(sql, params);
+                this.saveToLocal();
+                return res;
+            },
+
+            exec(sql) { return this.db.exec(sql); },
+
+            // 查詢 helper
+            query(sql, params = []) {
+                const stmt = this.db.prepare(sql);
+                stmt.bind(params);
+                const result = [];
+                while (stmt.step()) result.push(stmt.getAsObject());
+                stmt.free();
+                return result;
+            },
+
+            saveToLocal() {
+                const data = this.db.export();
+                // 轉成 String 存 LS (注意：大資料會爆 LocalStorage，這只是暫時方案，主要靠 GitHub)
+                // 簡單壓縮：只存 byte array string
+                localStorage.setItem('moze_db_cache', data.toString());
+            },
+
+            // --- GitHub Sync ---
+            
+            async uploadToGitHub(token, repo) {
+                if (!token || !repo) throw new Error("請先設定 Token 與 Repo");
+                
+                const data = this.db.export();
+                // Convert Uint8Array to Base64
+                let binary = '';
+                const len = data.byteLength;
+                for (let i = 0; i < len; i++) binary += String.fromCharCode(data[i]);
+                const content = btoa(binary);
+
+                // 1. Get current SHA (if exists) to allow update
+                let sha = null;
+                try {
+                    const check = await fetch(`https://api.github.com/repos/${repo}/contents/${DB_FILE_NAME}`, {
+                        headers: { Authorization: `token ${token}` }
+                    });
+                    if (check.ok) {
+                        const json = await check.json();
+                        sha = json.sha;
+                    }
+                } catch (e) {}
+
+                // 2. PUT file
+                const res = await fetch(`https://api.github.com/repos/${repo}/contents/${DB_FILE_NAME}`, {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `token ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: `Sync ${new Date().toLocaleString()}`,
+                        content: content,
+                        sha: sha
+                    })
+                });
+
+                if (!res.ok) throw new Error("上傳失敗: " + res.status);
+                return "上傳成功";
+            },
+
+            async downloadFromGitHub(token, repo) {
+                if (!token || !repo) throw new Error("請先設定 Token 與 Repo");
+
+                const res = await fetch(`https://api.github.com/repos/${repo}/contents/${DB_FILE_NAME}`, {
+                    headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3.raw' } // Request RAW content
+                });
+
+                if (!res.ok) throw new Error("找不到遠端檔案或下載失敗");
+
+                const arrayBuffer = await res.arrayBuffer();
+                const u8 = new Uint8Array(arrayBuffer);
+                
+                // 重建 DB
+                this.db = new this.SQL.Database(u8);
+                this.saveToLocal();
+                return "下載並還原成功";
+            }
+        };
+
+        // --- 2. 元件與視圖 ---
+
         const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [name]);
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
 
-        // 計算機鍵盤元件
+        // 計算機
         const Keypad = ({ onInput, onDelete, onClear, onConfirm }) => {
             const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'DEL'];
-            
             return (
                 <div className="grid grid-cols-4 gap-1 bg-gray-200 p-1 pb-6 safe-bottom">
                     <div className="col-span-3 grid grid-cols-3 gap-1">
                         {keys.map(k => (
-                            <button 
-                                key={k}
-                                onClick={() => k === 'DEL' ? onDelete() : onInput(k)}
-                                className="h-16 bg-white rounded text-2xl font-medium active:bg-gray-100 flex items-center justify-center"
-                            >
+                            <button key={k} onClick={() => k === 'DEL' ? onDelete() : onInput(k)} className="h-16 bg-white rounded text-2xl font-medium active:bg-gray-100 flex items-center justify-center">
                                 {k === 'DEL' ? <Icon name="delete" /> : k}
                             </button>
                         ))}
                     </div>
                     <div className="col-span-1 grid grid-rows-2 gap-1">
                         <button onClick={onClear} className="bg-white rounded text-xl font-medium active:bg-gray-100">C</button>
-                        <button onClick={onConfirm} className="bg-primary text-white rounded text-xl font-medium active:bg-blue-600 flex items-center justify-center">
-                            OK
-                        </button>
+                        <button onClick={onConfirm} className="bg-primary text-white rounded text-xl font-medium active:bg-blue-600 flex items-center justify-center">OK</button>
                     </div>
                 </div>
             );
         };
 
-        // --- 3. 頁面視圖 (Views) ---
+        // Dashboard
+        const DashboardView = ({ refreshTrigger }) => {
+            const [data, setData] = useState({ totalAsset: 0, income: 0, expense: 0, recents: [] });
 
-        // [頁面 1] 總覽 Dashboard
-        const DashboardView = ({ accounts }) => {
-            const totalAsset = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            useEffect(() => {
+                if (!DBService.db) return;
+                // 1. 計算總資產
+                const accounts = DBService.query("SELECT * FROM accounts");
+                const total = accounts.reduce((acc, curr) => acc + curr.balance, 0);
+                
+                // 2. 簡易統計本月 (這裡簡化，先抓所有)
+                const income = DBService.query("SELECT SUM(amount) as val FROM transactions WHERE type='income'")[0].val || 0;
+                const expense = DBService.query("SELECT SUM(amount) as val FROM transactions WHERE type='expense'")[0].val || 0;
+
+                // 3. 近期交易
+                const recents = DBService.query("SELECT t.*, a.name as account_name FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id ORDER BY created_at DESC LIMIT 5");
+
+                setData({ totalAsset: total, income, expense, recents });
+            }, [refreshTrigger]);
 
             return (
                 <div className="p-4 space-y-6 pb-24">
-                    {/* Header */}
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-bold text-text">總覽</h1>
-                        <button className="text-primary"><Icon name="bell" /></button>
-                    </div>
-
-                    {/* Asset Card */}
                     <div className="bg-surface p-6 rounded-2xl shadow-ios text-center">
                         <p className="text-gray-500 text-sm mb-1">淨資產</p>
-                        <h2 className="text-4xl font-bold text-text tracking-tight">
-                            $ {totalAsset.toLocaleString()}
-                        </h2>
+                        <h2 className="text-4xl font-bold text-text tracking-tight">$ {data.totalAsset.toLocaleString()}</h2>
                     </div>
-
-                    {/* Monthly Stats Mock */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-surface p-4 rounded-xl shadow-ios">
-                            <div className="flex items-center gap-2 mb-2 text-success">
-                                <Icon name="arrow-down-circle" size={18} />
-                                <span className="font-medium">本月收入</span>
-                            </div>
-                            <p className="text-xl font-bold">$ 45,000</p>
+                        <div className="bg-surface p-4 rounded-xl shadow-ios text-center">
+                            <p className="text-success text-sm font-bold mb-1">總收入</p>
+                            <p className="text-xl font-bold">$ {data.income.toLocaleString()}</p>
                         </div>
-                        <div className="bg-surface p-4 rounded-xl shadow-ios">
-                            <div className="flex items-center gap-2 mb-2 text-danger">
-                                <Icon name="arrow-up-circle" size={18} />
-                                <span className="font-medium">本月支出</span>
-                            </div>
-                            <p className="text-xl font-bold">$ 12,300</p>
+                        <div className="bg-surface p-4 rounded-xl shadow-ios text-center">
+                            <p className="text-danger text-sm font-bold mb-1">總支出</p>
+                            <p className="text-xl font-bold">$ {data.expense.toLocaleString()}</p>
                         </div>
                     </div>
-
-                    {/* Recent Transactions List (Placeholder) */}
                     <div>
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-bold text-lg">近期交易</h3>
-                            <span className="text-primary text-sm">查看全部</span>
-                        </div>
+                        <h3 className="font-bold text-lg mb-3">近期交易</h3>
                         <div className="bg-surface rounded-xl shadow-ios overflow-hidden">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0">
+                            {data.recents.length === 0 && <p className="p-4 text-gray-400 text-center text-sm">暫無交易</p>}
+                            {data.recents.map(t => (
+                                <div key={t.id} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-primary">
-                                            <Icon name="utensils" size={18} />
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${t.type==='income'?'bg-green-100 text-green-600':'bg-red-100 text-red-600'}`}>
+                                            <Icon name={t.type==='income'?'arrow-down':'shopping-bag'} size={18} />
                                         </div>
                                         <div>
-                                            <p className="font-medium">午餐</p>
-                                            <p className="text-xs text-gray-500">現金 • 今天 12:30</p>
+                                            <p className="font-medium">{t.note || '未命名交易'}</p>
+                                            <p className="text-xs text-gray-500">{t.account_name} • {t.date}</p>
                                         </div>
                                     </div>
-                                    <span className="font-bold text-danger">- $120</span>
+                                    <span className={`font-bold ${t.type==='expense'?'text-danger':t.type==='income'?'text-success':'text-text'}`}>
+                                        {t.type==='expense'?'-':'+'} ${t.amount}
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -187,233 +264,188 @@
             );
         };
 
-        // [頁面 2] 記帳 Entry
-        const EntryView = ({ accounts, categories, onSave }) => {
+        // Entry
+        const EntryView = ({ onSaveSuccess }) => {
             const [amount, setAmount] = useState('0');
-            const [type, setType] = useState('expense'); // expense, income, transfer
-            const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.id);
-            const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id);
+            const [type, setType] = useState('expense');
+            const [accounts, setAccounts] = useState([]);
+            const [selectedAccount, setSelectedAccount] = useState('');
             const [note, setNote] = useState('');
 
-            const handleInput = (val) => {
-                if (amount === '0' && val !== '.') setAmount(val);
-                else setAmount(prev => prev + val);
-            };
-
-            const handleDelete = () => {
-                setAmount(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
-            };
+            useEffect(() => {
+                if(DBService.db) {
+                    const accs = DBService.query("SELECT * FROM accounts");
+                    setAccounts(accs);
+                    if(accs.length > 0) setSelectedAccount(accs[0].id);
+                }
+            }, []);
 
             const handleConfirm = () => {
-                console.log("Saving...", { amount, type, selectedAccount, selectedCategory });
-                // Reset after save
-                setAmount('0');
-                alert("記帳成功 (模擬)");
-            };
+                const val = parseFloat(amount);
+                if (val <= 0) return alert("金額需大於 0");
+                if (!selectedAccount) return alert("請選擇帳戶");
 
-            return (
-                <div className="flex flex-col h-full bg-background">
-                    {/* Top Type Switcher */}
-                    <div className="p-2 bg-background safe-top">
-                         <div className="flex bg-gray-200 rounded-lg p-1">
-                            {['expense:支出', 'income:收入', 'transfer:轉帳'].map(t => {
-                                const [key, label] = t.split(':');
-                                const isActive = type === key;
-                                return (
-                                    <button 
-                                        key={key}
-                                        onClick={() => setType(key)}
-                                        className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${isActive ? 'bg-white shadow-sm text-text' : 'text-gray-500'}`}
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
+                try {
+                    // 1. 寫入交易
+                    DBService.run(
+                        `INSERT INTO transactions (id, date, type, amount, account_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [crypto.randomUUID(), new Date().toISOString().split('T')[0], type, val, selectedAccount, note || (type==='expense'?'一般支出':'一般收入'), Date.now()]
+                    );
 
-                    {/* Display Screen */}
-                    <div className="flex-1 flex flex-col justify-end p-6 bg-surface mb-2 rounded-b-3xl shadow-ios z-10">
-                        <div className="flex justify-end items-baseline gap-2 mb-4">
-                            <span className="text-2xl text-gray-400">$</span>
-                            <span className={`text-6xl font-medium tracking-tight ${type === 'expense' ? 'text-danger' : type === 'income' ? 'text-success' : 'text-text'}`}>
-                                {amount}
-                            </span>
-                        </div>
-                        
-                        {/* Selector Row */}
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap">
-                                <Icon name="wallet" size={16} />
-                                {accounts.find(a => a.id === selectedAccount)?.name || '選擇帳戶'}
-                            </button>
-                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap">
-                                <Icon name="tag" size={16} />
-                                {categories.find(c => c.id === selectedCategory)?.name || '選擇分類'}
-                            </button>
-                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap text-gray-500">
-                                <Icon name="calendar" size={16} />
-                                今天
-                            </button>
-                        </div>
-                    </div>
+                    // 2. 更新帳戶餘額
+                    const sign = type === 'expense' ? -1 : 1; // 轉帳邏輯暫略
+                    DBService.run(
+                        `UPDATE accounts SET balance = balance + ? WHERE id = ?`,
+                        [val * sign, selectedAccount]
+                    );
 
-                    {/* Numpad */}
-                    <Keypad 
-                        onInput={handleInput} 
-                        onDelete={handleDelete} 
-                        onClear={() => setAmount('0')}
-                        onConfirm={handleConfirm}
-                    />
-                </div>
-            );
-        };
-
-        // [頁面 3] 帳戶 Accounts
-        const AccountsView = ({ accounts }) => {
-            return (
-                <div className="p-4 space-y-4 pb-24">
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-bold text-text">帳戶</h1>
-                        <button className="text-primary"><Icon name="plus" /></button>
-                    </div>
-
-                    <div className="space-y-3">
-                        {accounts.map(acc => (
-                            <div key={acc.id} className="bg-surface p-4 rounded-xl shadow-ios flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${acc.type === 'credit' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
-                                        <Icon name={acc.type === 'credit' ? 'credit-card' : 'wallet'} size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="font-bold">{acc.name}</p>
-                                        <p className="text-xs text-gray-500 capitalize">{acc.type === 'credit' ? '信用卡' : '現金/銀行'}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className={`font-bold ${acc.balance < 0 ? 'text-danger' : 'text-text'}`}>
-                                        $ {acc.balance.toLocaleString()}
-                                    </p>
-                                    {acc.type === 'credit' && (
-                                        <p className="text-xs text-gray-400">額度 {(acc.limit - Math.abs(acc.balance)).toLocaleString()}</p>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
-
-        // [頁面 4] 設定 Settings (GitHub API 設定入口)
-        const SettingsView = () => {
-            const [token, setToken] = useState('');
-            const [repo, setRepo] = useState('');
-
-            return (
-                <div className="p-4 pb-24">
-                    <h1 className="text-2xl font-bold text-text mb-6">設定</h1>
-                    
-                    <div className="bg-surface rounded-xl shadow-ios overflow-hidden mb-6">
-                        <div className="p-4 border-b border-gray-100">
-                            <h3 className="font-bold mb-2 flex items-center gap-2">
-                                <Icon name="github" size={18} /> 資料同步設定
-                            </h3>
-                            <p className="text-sm text-gray-500 mb-4">設定 GitHub Personal Access Token 以啟用雲端備份。</p>
-                            
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">GITHUB TOKEN</label>
-                                    <input 
-                                        type="password" 
-                                        value={token} 
-                                        onChange={(e) => setToken(e.target.value)}
-                                        className="w-full bg-gray-100 rounded p-2 text-sm"
-                                        placeholder="ghp_xxxxxxxxxxxx"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">REPOSITORY (username/repo)</label>
-                                    <input 
-                                        type="text" 
-                                        value={repo}
-                                        onChange={(e) => setRepo(e.target.value)}
-                                        className="w-full bg-gray-100 rounded p-2 text-sm"
-                                        placeholder="username/finance-backup"
-                                    />
-                                </div>
-                                <button className="w-full bg-gray-900 text-white py-2 rounded font-medium mt-2">
-                                    測試連線
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-surface rounded-xl shadow-ios overflow-hidden">
-                        {['匯出 CSV', '匯入備份', '清除所有資料'].map((item, idx) => (
-                            <button key={idx} className="w-full text-left p-4 border-b border-gray-100 last:border-0 flex justify-between items-center active:bg-gray-50">
-                                {item}
-                                <Icon name="chevron-right" size={16} className="text-gray-400" />
-                            </button>
-                        ))}
-                    </div>
-                    
-                    <p className="text-center text-gray-400 text-xs mt-8">Moze Clone PWA v0.1</p>
-                </div>
-            );
-        }
-
-        // --- 4. 主程式 App Shell ---
-
-        const App = () => {
-            const [activeTab, setActiveTab] = useState('dashboard');
-            
-            // 這裡模擬從資料庫讀取的狀態
-            const [accounts, setAccounts] = useState(initialAccounts);
-            const [categories, setCategories] = useState(initialCategories);
-
-            const renderContent = () => {
-                switch(activeTab) {
-                    case 'dashboard': return <DashboardView accounts={accounts} />;
-                    case 'accounts': return <AccountsView accounts={accounts} />;
-                    case 'entry': return <EntryView accounts={accounts} categories={categories} />;
-                    case 'settings': return <SettingsView />;
-                    default: return <DashboardView accounts={accounts} />;
+                    alert("記帳成功！");
+                    setAmount('0');
+                    onSaveSuccess(); // 通知 App 刷新
+                } catch (e) {
+                    alert("錯誤: " + e.message);
                 }
             };
 
             return (
-                <div className="h-screen w-full max-w-md mx-auto bg-background flex flex-col relative overflow-hidden">
-                    {/* Main Content Area */}
-                    <main className="flex-1 overflow-y-auto no-scrollbar">
-                        {renderContent()}
-                    </main>
+                <div className="flex flex-col h-full bg-background">
+                    <div className="p-2 bg-background safe-top">
+                         <div className="flex bg-gray-200 rounded-lg p-1">
+                            {['expense:支出', 'income:收入'].map(t => (
+                                <button key={t} onClick={() => setType(t.split(':')[0])} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${type === t.split(':')[0] ? 'bg-white shadow-sm text-text' : 'text-gray-500'}`}>
+                                    {t.split(':')[1]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end p-6 bg-surface mb-2 rounded-b-3xl shadow-ios z-10">
+                        <div className="flex justify-end items-baseline gap-2 mb-4">
+                            <span className="text-2xl text-gray-400">$</span>
+                            <span className={`text-6xl font-medium tracking-tight ${type === 'expense' ? 'text-danger' : 'text-success'}`}>{amount}</span>
+                        </div>
+                        <input type="text" placeholder="點此輸入備註..." value={note} onChange={e => setNote(e.target.value)} className="w-full bg-gray-100 p-2 rounded mb-4 text-right" />
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                            {accounts.map(acc => (
+                                <button key={acc.id} onClick={() => setSelectedAccount(acc.id)} className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap border ${selectedAccount === acc.id ? 'bg-blue-50 border-primary text-primary' : 'bg-gray-100 border-transparent'}`}>
+                                    <Icon name="wallet" size={16} /> {acc.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <Keypad onInput={v => setAmount(p => (p==='0'&&v!=='.')?v:p+v)} onDelete={() => setAmount(p => p.length>1?p.slice(0,-1):'0')} onClear={() => setAmount('0')} onConfirm={handleConfirm} />
+                </div>
+            );
+        };
 
-                    {/* Bottom Navigation */}
+        // Settings (Sync)
+        const SettingsView = ({ onRefresh }) => {
+            const [token, setToken] = useState(localStorage.getItem('gh_token') || '');
+            const [repo, setRepo] = useState(localStorage.getItem('gh_repo') || '');
+            const [status, setStatus] = useState('');
+
+            const saveConfig = () => {
+                localStorage.setItem('gh_token', token);
+                localStorage.setItem('gh_repo', repo);
+                setStatus('設定已儲存');
+                setTimeout(() => setStatus(''), 2000);
+            };
+
+            const handleSync = async (direction) => {
+                setStatus('處理中...');
+                try {
+                    if(direction === 'up') {
+                        await DBService.uploadToGitHub(token, repo);
+                        setStatus('上傳成功！');
+                    } else {
+                        await DBService.downloadFromGitHub(token, repo);
+                        setStatus('下載並還原成功！');
+                        onRefresh(); // 刷新全站資料
+                    }
+                } catch(e) {
+                    setStatus('錯誤: ' + e.message);
+                }
+            };
+
+            return (
+                <div className="p-4 pb-24">
+                    <h1 className="text-2xl font-bold text-text mb-6">設定</h1>
+                    <div className="bg-surface rounded-xl shadow-ios p-4 mb-6 space-y-3">
+                        <h3 className="font-bold flex items-center gap-2"><Icon name="github" size={18} /> GitHub 同步</h3>
+                        <input type="password" value={token} onChange={e=>setToken(e.target.value)} className="w-full bg-gray-100 rounded p-2 text-sm" placeholder="Token: ghp_..." />
+                        <input type="text" value={repo} onChange={e=>setRepo(e.target.value)} className="w-full bg-gray-100 rounded p-2 text-sm" placeholder="Repo: user/repo" />
+                        <button onClick={saveConfig} className="w-full bg-gray-200 py-2 rounded font-medium text-sm">儲存設定</button>
+                        
+                        <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-100">
+                            <button onClick={() => handleSync('down')} className="bg-orange-100 text-orange-700 py-3 rounded-lg font-bold text-sm flex flex-col items-center">
+                                <Icon name="download-cloud" className="mb-1"/> 下載/還原
+                            </button>
+                            <button onClick={() => handleSync('up')} className="bg-blue-100 text-blue-700 py-3 rounded-lg font-bold text-sm flex flex-col items-center">
+                                <Icon name="upload-cloud" className="mb-1"/> 上傳/備份
+                            </button>
+                        </div>
+                        {status && <p className="text-center text-xs font-bold text-primary mt-2">{status}</p>}
+                    </div>
+                </div>
+            );
+        };
+
+        const AccountsView = ({ refreshTrigger }) => {
+             const [accounts, setAccounts] = useState([]);
+             useEffect(() => {
+                 if(DBService.db) setAccounts(DBService.query("SELECT * FROM accounts"));
+             }, [refreshTrigger]);
+             
+             return (
+                 <div className="p-4 pb-24 space-y-3">
+                    <h1 className="text-2xl font-bold mb-4">帳戶</h1>
+                    {accounts.map(acc => (
+                        <div key={acc.id} className="bg-surface p-4 rounded-xl shadow-ios flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${acc.type==='credit'?'bg-purple-100 text-purple-600':'bg-blue-100 text-blue-600'}`}>
+                                    <Icon name={acc.type==='credit'?'credit-card':'wallet'} />
+                                </div>
+                                <span className="font-bold">{acc.name}</span>
+                            </div>
+                            <span className={`font-bold ${acc.balance<0?'text-danger':'text-text'}`}>$ {acc.balance.toLocaleString()}</span>
+                        </div>
+                    ))}
+                 </div>
+             )
+        }
+
+        // App Shell
+        const App = () => {
+            const [ready, setReady] = useState(false);
+            const [tab, setTab] = useState('dashboard');
+            const [refresh, setRefresh] = useState(0); // 用來觸發全站重繪
+
+            useEffect(() => {
+                DBService.init().then(() => setReady(true));
+            }, []);
+
+            const triggerRefresh = () => setRefresh(r => r + 1);
+
+            if (!ready) return <div className="h-screen flex items-center justify-center text-gray-500">正在載入資料庫...</div>;
+
+            return (
+                <div className="h-screen w-full max-w-md mx-auto bg-background flex flex-col relative overflow-hidden">
+                    <main className="flex-1 overflow-y-auto no-scrollbar">
+                        {tab === 'dashboard' && <DashboardView refreshTrigger={refresh} />}
+                        {tab === 'accounts' && <AccountsView refreshTrigger={refresh} />}
+                        {tab === 'entry' && <EntryView onSaveSuccess={() => { triggerRefresh(); setTab('dashboard'); }} />}
+                        {tab === 'settings' && <SettingsView onRefresh={triggerRefresh} />}
+                    </main>
                     <nav className="bg-surface border-t border-gray-200 safe-bottom">
                         <div className="flex justify-around items-center h-16">
                             {[
                                 { id: 'dashboard', icon: 'layout-dashboard', label: '總覽' },
                                 { id: 'accounts', icon: 'wallet', label: '帳戶' },
                                 { id: 'entry', icon: 'plus-circle', label: '記帳', isPrimary: true },
-                                { id: 'projects', icon: 'folder', label: '專案' },
                                 { id: 'settings', icon: 'settings', label: '設定' },
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-                                        activeTab === tab.id ? 'text-primary' : 'text-gray-400'
-                                    }`}
-                                >
-                                    {tab.isPrimary ? (
-                                        <div className="-mt-6 bg-primary text-white p-3 rounded-full shadow-lg shadow-blue-200">
-                                            <Icon name={tab.icon} size={28} />
-                                        </div>
-                                    ) : (
-                                        <Icon name={tab.icon} size={24} />
-                                    )}
-                                    <span className="text-[10px] font-medium">{tab.label}</span>
+                            ].map(t => (
+                                <button key={t.id} onClick={() => setTab(t.id)} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${tab === t.id ? 'text-primary' : 'text-gray-400'}`}>
+                                    {t.isPrimary ? <div className="-mt-6 bg-primary text-white p-3 rounded-full shadow-lg"><Icon name={t.icon} size={28} /></div> : <Icon name={t.icon} size={24} />}
+                                    <span className="text-[10px] font-medium">{t.label}</span>
                                 </button>
                             ))}
                         </div>
