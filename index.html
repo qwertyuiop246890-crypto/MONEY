@@ -1,380 +1,429 @@
 <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Moze Clone PWA</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons (Lucide via CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-<html class="dark" lang="zh-Hant"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>預算設定 - 個人記帳工具</title>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<script id="tailwind-config">
+    <!-- Tailwind Config for Mobile -->
+    <script>
         tailwind.config = {
-            darkMode: "class",
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#17cf17",
-                        "background-light": "#f6f8f6",
-                        "background-dark": "#112111", // Keeping consistent with the request but the components use #112211, adapting to look seamless
-                        "card-dark": "#1a2e1a", // Slightly lighter for cards
-                        "border-dark": "#244724",
+                        primary: '#007AFF', // iOS Blue
+                        secondary: '#5AC8FA',
+                        success: '#34C759', // iOS Green
+                        danger: '#FF3B30', // iOS Red
+                        background: '#F2F2F7', // iOS System Gray 6
+                        surface: '#FFFFFF',
+                        text: '#1C1C1E',
                     },
-                    fontFamily: {
-                        "display": ["Manrope", "Noto Sans TC", "sans-serif"],
-                        "body": ["Manrope", "Noto Sans TC", "sans-serif"],
-                    },
-                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
-                },
-            },
+                    boxShadow: {
+                        'ios': '0 2px 8px rgba(0, 0, 0, 0.04)',
+                        'nav': '0 -1px 0 rgba(0, 0, 0, 0.1)',
+                    }
+                }
+            }
         }
     </script>
-<style>
-        /* Custom range slider styling */
-        input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
+
+    <style>
+        /* iOS-like fluid scrolling and safe areas */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #F2F2F7;
         }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
         }
-        input[type=range]:focus {
-            outline: none; 
+        /* Hide scrollbar but keep functionality */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 </head>
-<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display antialiased selection:bg-primary/30">
-<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
-<!-- Top Navigation -->
-<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-border-dark bg-[#112211] px-10 py-3">
-<div class="flex items-center gap-4 text-white">
-<div class="size-8 text-primary">
-<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
-</div>
-<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">個人記帳工具</h2>
-</div>
-<div class="flex flex-1 justify-end gap-8">
-<div class="hidden md:flex items-center gap-9">
-<a class="text-white/70 hover:text-white text-sm font-medium leading-normal transition-colors" href="#">首頁</a>
-<a class="text-white/70 hover:text-white text-sm font-medium leading-normal transition-colors" href="#">記帳</a>
-<a class="text-white/70 hover:text-white text-sm font-medium leading-normal transition-colors" href="#">報表</a>
-<a class="text-white text-sm font-medium leading-normal border-b-2 border-primary pb-0.5" href="#">預算設定</a>
-<a class="text-white/70 hover:text-white text-sm font-medium leading-normal transition-colors" href="#">設定</a>
-</div>
-<button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-[#112211] hover:bg-[#15bd15] transition-colors text-sm font-bold leading-normal tracking-[0.015em]">
-<span class="truncate">匯出資料</span>
-</button>
-<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-border-dark" data-alt="User profile avatar gradient" style="background-image: linear-gradient(135deg, #17cf17 0%, #112211 100%);"></div>
-</div>
-</header>
-<!-- Main Content Layout -->
-<div class="flex flex-1 justify-center py-8 px-4 md:px-10 lg:px-20">
-<div class="layout-content-container flex flex-col max-w-[1200px] flex-1 gap-8">
-<!-- Page Heading & Controls -->
-<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border-dark pb-6">
-<div class="flex flex-col gap-2">
-<h1 class="text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">預算規劃</h1>
-<p class="text-[#93c893] text-base font-normal leading-normal">設定您的每月支出限額，開啟智慧理財生活</p>
-</div>
-<div class="flex items-center gap-3 bg-[#1a2e1a] p-1 rounded-lg border border-border-dark">
-<button class="px-4 py-2 rounded text-sm font-bold bg-[#244724] text-white shadow-sm">本月</button>
-<button class="px-4 py-2 rounded text-sm font-medium text-[#93c893] hover:text-white transition-colors">下個月</button>
-<button class="px-4 py-2 rounded text-sm font-medium text-[#93c893] hover:text-white transition-colors">自訂區間</button>
-</div>
-</div>
-<!-- Global Stats Overview -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-<div class="flex flex-col gap-3 rounded-xl p-6 bg-[#1a2e1a] border border-border-dark relative overflow-hidden group hover:border-primary/50 transition-colors">
-<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-<span class="material-symbols-outlined text-6xl text-primary">savings</span>
-</div>
-<p class="text-[#93c893] text-sm font-medium uppercase tracking-wider">本月總預算</p>
-<div class="flex items-baseline gap-2">
-<span class="text-white text-3xl font-bold font-display">$45,000</span>
-<span class="text-xs text-[#93c893]">TWD</span>
-</div>
-<div class="mt-auto pt-2">
-<span class="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-<span class="material-symbols-outlined text-[14px]">trending_up</span>
-                                比上月增加 5%
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- 1. 資料模擬層 (Mock Data / Storage Layer) ---
+        // 在下一階段，這裡會被 SQLite 和 GitHub API 取代
+        
+        const initialAccounts = [
+            { id: '1', name: '錢包現金', type: 'cash', balance: 5000, currency: 'TWD' },
+            { id: '2', name: '中國信託', type: 'bank', balance: 125000, currency: 'TWD' },
+            { id: '3', name: '台新 @GoGo', type: 'credit', balance: -4500, limit: 100000, currency: 'TWD' },
+        ];
+
+        const initialCategories = [
+            { id: 'c1', name: '餐飲', icon: 'utensils', type: 'expense' },
+            { id: 'c2', name: '交通', icon: 'bus', type: 'expense' },
+            { id: 'c3', name: '購物', icon: 'shopping-bag', type: 'expense' },
+            { id: 'c4', name: '薪資', icon: 'banknote', type: 'income' },
+        ];
+
+        // --- 2. 元件 (Components) ---
+
+        // icon helper
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // 計算機鍵盤元件
+        const Keypad = ({ onInput, onDelete, onClear, onConfirm }) => {
+            const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'DEL'];
+            
+            return (
+                <div className="grid grid-cols-4 gap-1 bg-gray-200 p-1 pb-6 safe-bottom">
+                    <div className="col-span-3 grid grid-cols-3 gap-1">
+                        {keys.map(k => (
+                            <button 
+                                key={k}
+                                onClick={() => k === 'DEL' ? onDelete() : onInput(k)}
+                                className="h-16 bg-white rounded text-2xl font-medium active:bg-gray-100 flex items-center justify-center"
+                            >
+                                {k === 'DEL' ? <Icon name="delete" /> : k}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="col-span-1 grid grid-rows-2 gap-1">
+                        <button onClick={onClear} className="bg-white rounded text-xl font-medium active:bg-gray-100">C</button>
+                        <button onClick={onConfirm} className="bg-primary text-white rounded text-xl font-medium active:bg-blue-600 flex items-center justify-center">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 3. 頁面視圖 (Views) ---
+
+        // [頁面 1] 總覽 Dashboard
+        const DashboardView = ({ accounts }) => {
+            const totalAsset = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+
+            return (
+                <div className="p-4 space-y-6 pb-24">
+                    {/* Header */}
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl font-bold text-text">總覽</h1>
+                        <button className="text-primary"><Icon name="bell" /></button>
+                    </div>
+
+                    {/* Asset Card */}
+                    <div className="bg-surface p-6 rounded-2xl shadow-ios text-center">
+                        <p className="text-gray-500 text-sm mb-1">淨資產</p>
+                        <h2 className="text-4xl font-bold text-text tracking-tight">
+                            $ {totalAsset.toLocaleString()}
+                        </h2>
+                    </div>
+
+                    {/* Monthly Stats Mock */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-surface p-4 rounded-xl shadow-ios">
+                            <div className="flex items-center gap-2 mb-2 text-success">
+                                <Icon name="arrow-down-circle" size={18} />
+                                <span className="font-medium">本月收入</span>
+                            </div>
+                            <p className="text-xl font-bold">$ 45,000</p>
+                        </div>
+                        <div className="bg-surface p-4 rounded-xl shadow-ios">
+                            <div className="flex items-center gap-2 mb-2 text-danger">
+                                <Icon name="arrow-up-circle" size={18} />
+                                <span className="font-medium">本月支出</span>
+                            </div>
+                            <p className="text-xl font-bold">$ 12,300</p>
+                        </div>
+                    </div>
+
+                    {/* Recent Transactions List (Placeholder) */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-bold text-lg">近期交易</h3>
+                            <span className="text-primary text-sm">查看全部</span>
+                        </div>
+                        <div className="bg-surface rounded-xl shadow-ios overflow-hidden">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-primary">
+                                            <Icon name="utensils" size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">午餐</p>
+                                            <p className="text-xs text-gray-500">現金 • 今天 12:30</p>
+                                        </div>
+                                    </div>
+                                    <span className="font-bold text-danger">- $120</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // [頁面 2] 記帳 Entry
+        const EntryView = ({ accounts, categories, onSave }) => {
+            const [amount, setAmount] = useState('0');
+            const [type, setType] = useState('expense'); // expense, income, transfer
+            const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.id);
+            const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id);
+            const [note, setNote] = useState('');
+
+            const handleInput = (val) => {
+                if (amount === '0' && val !== '.') setAmount(val);
+                else setAmount(prev => prev + val);
+            };
+
+            const handleDelete = () => {
+                setAmount(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+            };
+
+            const handleConfirm = () => {
+                console.log("Saving...", { amount, type, selectedAccount, selectedCategory });
+                // Reset after save
+                setAmount('0');
+                alert("記帳成功 (模擬)");
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-background">
+                    {/* Top Type Switcher */}
+                    <div className="p-2 bg-background safe-top">
+                         <div className="flex bg-gray-200 rounded-lg p-1">
+                            {['expense:支出', 'income:收入', 'transfer:轉帳'].map(t => {
+                                const [key, label] = t.split(':');
+                                const isActive = type === key;
+                                return (
+                                    <button 
+                                        key={key}
+                                        onClick={() => setType(key)}
+                                        className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${isActive ? 'bg-white shadow-sm text-text' : 'text-gray-500'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Display Screen */}
+                    <div className="flex-1 flex flex-col justify-end p-6 bg-surface mb-2 rounded-b-3xl shadow-ios z-10">
+                        <div className="flex justify-end items-baseline gap-2 mb-4">
+                            <span className="text-2xl text-gray-400">$</span>
+                            <span className={`text-6xl font-medium tracking-tight ${type === 'expense' ? 'text-danger' : type === 'income' ? 'text-success' : 'text-text'}`}>
+                                {amount}
                             </span>
-</div>
-</div>
-<div class="flex flex-col gap-3 rounded-xl p-6 bg-[#1a2e1a] border border-border-dark relative overflow-hidden group hover:border-primary/50 transition-colors">
-<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-<span class="material-symbols-outlined text-6xl text-primary">payments</span>
-</div>
-<p class="text-[#93c893] text-sm font-medium uppercase tracking-wider">目前已支出</p>
-<div class="flex items-baseline gap-2">
-<span class="text-white text-3xl font-bold font-display">$18,450</span>
-<span class="text-xs text-[#93c893]">TWD</span>
-</div>
-<div class="mt-auto pt-2 w-full">
-<div class="flex justify-between text-xs mb-1 text-[#93c893]">
-<span>進度 41%</span>
-</div>
-<div class="h-1.5 w-full bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-primary rounded-full" style="width: 41%"></div>
-</div>
-</div>
-</div>
-<div class="flex flex-col gap-3 rounded-xl p-6 bg-[#1a2e1a] border border-border-dark relative overflow-hidden group hover:border-primary/50 transition-colors">
-<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-<span class="material-symbols-outlined text-6xl text-primary">account_balance</span>
-</div>
-<p class="text-[#93c893] text-sm font-medium uppercase tracking-wider">預算剩餘</p>
-<div class="flex items-baseline gap-2">
-<span class="text-white text-3xl font-bold font-display">$26,550</span>
-<span class="text-xs text-[#93c893]">TWD</span>
-</div>
-<div class="mt-auto pt-2">
-<span class="text-sm text-[#93c893]">距離結算還有 <span class="text-white font-bold">12</span> 天</span>
-</div>
-</div>
-</div>
-<!-- Main Grid Layout -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-<!-- Left Column: Budget List -->
-<div class="lg:col-span-2 flex flex-col gap-6">
-<div class="flex items-center justify-between">
-<h3 class="text-white text-xl font-bold">分類預算詳情</h3>
-<button class="text-primary text-sm font-bold hover:underline flex items-center gap-1">
-                                查看全部
-                                <span class="material-symbols-outlined text-sm">arrow_forward</span>
-</button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<!-- Budget Card: Food (Warning state) -->
-<div class="rounded-xl border border-border-dark bg-[#1a2e1a] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow">
-<div class="flex justify-between items-start">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
-<span class="material-symbols-outlined">restaurant</span>
-</div>
-<div>
-<p class="text-white font-bold text-lg">餐飲食品</p>
-<p class="text-xs text-[#93c893]">每月循環 • 結轉開啟</p>
-</div>
-</div>
-<button class="text-[#93c893] hover:text-white rounded-full p-1 hover:bg-[#244724]">
-<span class="material-symbols-outlined">more_vert</span>
-</button>
-</div>
-<div class="flex flex-col gap-2">
-<div class="flex justify-between text-sm">
-<span class="text-[#93c893]">已用 $8,500</span>
-<span class="text-white font-bold">$10,000</span>
-</div>
-<div class="h-2 w-full bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-yellow-500 rounded-full" style="width: 85%"></div>
-</div>
-<div class="flex justify-between items-center mt-1">
-<div class="flex items-center gap-1 text-xs text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded">
-<span class="material-symbols-outlined text-[12px]">warning</span>
-<span>接近上限 (85%)</span>
-</div>
-<span class="text-xs text-[#93c893]">剩餘 $1,500</span>
-</div>
-</div>
-</div>
-<!-- Budget Card: Transport (Good state) -->
-<div class="rounded-xl border border-border-dark bg-[#1a2e1a] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow">
-<div class="flex justify-between items-start">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-<span class="material-symbols-outlined">directions_car</span>
-</div>
-<div>
-<p class="text-white font-bold text-lg">交通通勤</p>
-<p class="text-xs text-[#93c893]">每月循環</p>
-</div>
-</div>
-<button class="text-[#93c893] hover:text-white rounded-full p-1 hover:bg-[#244724]">
-<span class="material-symbols-outlined">more_vert</span>
-</button>
-</div>
-<div class="flex flex-col gap-2">
-<div class="flex justify-between text-sm">
-<span class="text-[#93c893]">已用 $1,200</span>
-<span class="text-white font-bold">$3,000</span>
-</div>
-<div class="h-2 w-full bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-primary rounded-full" style="width: 40%"></div>
-</div>
-<div class="flex justify-between items-center mt-1">
-<div class="text-xs text-primary">狀態良好</div>
-<span class="text-xs text-[#93c893]">剩餘 $1,800</span>
-</div>
-</div>
-</div>
-<!-- Budget Card: Shopping (Danger state) -->
-<div class="rounded-xl border border-border-dark bg-[#1a2e1a] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow">
-<div class="flex justify-between items-start">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
-<span class="material-symbols-outlined">shopping_bag</span>
-</div>
-<div>
-<p class="text-white font-bold text-lg">購物娛樂</p>
-<p class="text-xs text-[#93c893]">每週循環</p>
-</div>
-</div>
-<button class="text-[#93c893] hover:text-white rounded-full p-1 hover:bg-[#244724]">
-<span class="material-symbols-outlined">more_vert</span>
-</button>
-</div>
-<div class="flex flex-col gap-2">
-<div class="flex justify-between text-sm">
-<span class="text-red-400 font-bold">已用 $5,200</span>
-<span class="text-white font-bold">$5,000</span>
-</div>
-<div class="h-2 w-full bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-red-500 rounded-full" style="width: 100%"></div>
-</div>
-<div class="flex justify-between items-center mt-1">
-<div class="flex items-center gap-1 text-xs text-red-500 bg-red-500/10 px-2 py-0.5 rounded">
-<span class="material-symbols-outlined text-[12px]">error</span>
-<span>超出預算</span>
-</div>
-<span class="text-xs text-red-400">超支 $200</span>
-</div>
-</div>
-</div>
-<!-- Budget Card: House (Empty state ish) -->
-<div class="rounded-xl border border-border-dark bg-[#1a2e1a] p-5 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow">
-<div class="flex justify-between items-start">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500">
-<span class="material-symbols-outlined">home</span>
-</div>
-<div>
-<p class="text-white font-bold text-lg">居家生活</p>
-<p class="text-xs text-[#93c893]">每月循環</p>
-</div>
-</div>
-<button class="text-[#93c893] hover:text-white rounded-full p-1 hover:bg-[#244724]">
-<span class="material-symbols-outlined">more_vert</span>
-</button>
-</div>
-<div class="flex flex-col gap-2">
-<div class="flex justify-between text-sm">
-<span class="text-[#93c893]">已用 $3,500</span>
-<span class="text-white font-bold">$15,000</span>
-</div>
-<div class="h-2 w-full bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-blue-500 rounded-full" style="width: 23%"></div>
-</div>
-<div class="flex justify-between items-center mt-1">
-<div class="text-xs text-blue-500">狀態良好</div>
-<span class="text-xs text-[#93c893]">剩餘 $11,500</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Right Column: Add/Edit Form -->
-<div class="lg:col-span-1">
-<div class="sticky top-6 rounded-xl border border-border-dark bg-[#112211] p-6 flex flex-col gap-5 shadow-lg">
-<div class="flex items-center justify-between border-b border-border-dark pb-4">
-<h3 class="text-white text-lg font-bold">新增預算</h3>
-<button class="text-[#93c893] hover:text-white">
-<span class="material-symbols-outlined">close</span>
-</button>
-</div>
-<form class="flex flex-col gap-5">
-<!-- Category Select -->
-<div class="flex flex-col gap-2">
-<label class="text-[#93c893] text-sm font-medium">預算類別</label>
-<div class="relative">
-<select class="w-full h-11 bg-[#1a2e1a] border border-border-dark text-white text-sm rounded-lg px-4 appearance-none focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
-<option>請選擇類別...</option>
-<option>餐飲食品</option>
-<option>交通通勤</option>
-<option>購物娛樂</option>
-<option>居家生活</option>
-<option>醫療保健</option>
-</select>
-<div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#93c893]">
-<span class="material-symbols-outlined">expand_more</span>
-</div>
-</div>
-</div>
-<!-- Amount Input -->
-<div class="flex flex-col gap-2">
-<label class="text-[#93c893] text-sm font-medium">預算金額 (TWD)</label>
-<div class="relative">
-<span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#93c893]">$</span>
-<input class="w-full h-11 bg-[#1a2e1a] border border-border-dark text-white text-sm rounded-lg pl-8 pr-4 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="0" type="number"/>
-</div>
-</div>
-<!-- Period Select -->
-<div class="flex flex-col gap-2">
-<label class="text-[#93c893] text-sm font-medium">預算週期</label>
-<div class="grid grid-cols-3 gap-2">
-<label class="cursor-pointer">
-<input checked="" class="peer sr-only" name="period" type="radio"/>
-<div class="h-9 flex items-center justify-center rounded-lg border border-border-dark bg-[#1a2e1a] text-[#93c893] text-sm peer-checked:bg-primary peer-checked:text-[#112211] peer-checked:font-bold transition-all">每月</div>
-</label>
-<label class="cursor-pointer">
-<input class="peer sr-only" name="period" type="radio"/>
-<div class="h-9 flex items-center justify-center rounded-lg border border-border-dark bg-[#1a2e1a] text-[#93c893] text-sm peer-checked:bg-primary peer-checked:text-[#112211] peer-checked:font-bold transition-all">每週</div>
-</label>
-<label class="cursor-pointer">
-<input class="peer sr-only" name="period" type="radio"/>
-<div class="h-9 flex items-center justify-center rounded-lg border border-border-dark bg-[#1a2e1a] text-[#93c893] text-sm peer-checked:bg-primary peer-checked:text-[#112211] peer-checked:font-bold transition-all">自訂</div>
-</label>
-</div>
-</div>
-<!-- Options -->
-<div class="flex flex-col gap-4 py-2">
-<label class="flex items-center justify-between cursor-pointer group">
-<span class="text-white text-sm font-medium">開啟預算結轉</span>
-<div class="relative inline-flex items-center cursor-pointer">
-<input checked="" class="sr-only peer" type="checkbox" value=""/>
-<div class="w-11 h-6 bg-[#244724] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-</div>
-</label>
-<p class="text-xs text-[#93c893] -mt-3">將本期未用完的預算自動轉移至下一期</p>
-</div>
-<!-- Alert Threshold -->
-<div class="flex flex-col gap-3 pt-2">
-<div class="flex justify-between items-center">
-<label class="text-white text-sm font-medium">預算警示通知</label>
-<span class="text-primary text-sm font-bold">80%</span>
-</div>
-<div class="relative w-full h-6 flex items-center">
-<div class="absolute w-full h-1.5 bg-[#244724] rounded-full overflow-hidden">
-<div class="h-full bg-primary" style="width: 80%"></div>
-</div>
-<input class="w-full absolute z-10 cursor-pointer h-full opacity-0" max="100" min="0" type="range" value="80"/>
-<div class="size-4 bg-white rounded-full absolute pointer-events-none shadow-md" style="left: 80%; transform: translateX(-50%);"></div>
-</div>
-<p class="text-xs text-[#93c893]">當支出達到 80% 時發送通知</p>
-</div>
-<!-- Actions -->
-<div class="flex gap-3 mt-4">
-<button class="flex-1 h-10 rounded-lg border border-border-dark bg-transparent text-white text-sm font-bold hover:bg-[#244724] transition-colors" type="button">
-                                        取消
-                                    </button>
-<button class="flex-1 h-10 rounded-lg bg-primary text-[#112211] text-sm font-bold hover:bg-[#15bd15] transition-colors shadow-lg shadow-primary/20" type="button">
-                                        儲存設定
-                                    </button>
-</div>
-</form>
-</div>
-<!-- Helper Card -->
-<div class="mt-6 rounded-xl bg-[#244724]/30 p-4 border border-border-dark flex gap-3 items-start">
-<span class="material-symbols-outlined text-primary mt-0.5">lightbulb</span>
-<div>
-<p class="text-white text-sm font-bold mb-1">理財小撇步</p>
-<p class="text-xs text-[#93c893] leading-relaxed">建議將「儲蓄」也設為一個預算類別，確保每月先把要存的錢扣除，這就是「先支付自己」的觀念。</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</body></html>
+                        </div>
+                        
+                        {/* Selector Row */}
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap">
+                                <Icon name="wallet" size={16} />
+                                {accounts.find(a => a.id === selectedAccount)?.name || '選擇帳戶'}
+                            </button>
+                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap">
+                                <Icon name="tag" size={16} />
+                                {categories.find(c => c.id === selectedCategory)?.name || '選擇分類'}
+                            </button>
+                            <button className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap text-gray-500">
+                                <Icon name="calendar" size={16} />
+                                今天
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Numpad */}
+                    <Keypad 
+                        onInput={handleInput} 
+                        onDelete={handleDelete} 
+                        onClear={() => setAmount('0')}
+                        onConfirm={handleConfirm}
+                    />
+                </div>
+            );
+        };
+
+        // [頁面 3] 帳戶 Accounts
+        const AccountsView = ({ accounts }) => {
+            return (
+                <div className="p-4 space-y-4 pb-24">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl font-bold text-text">帳戶</h1>
+                        <button className="text-primary"><Icon name="plus" /></button>
+                    </div>
+
+                    <div className="space-y-3">
+                        {accounts.map(acc => (
+                            <div key={acc.id} className="bg-surface p-4 rounded-xl shadow-ios flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${acc.type === 'credit' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
+                                        <Icon name={acc.type === 'credit' ? 'credit-card' : 'wallet'} size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold">{acc.name}</p>
+                                        <p className="text-xs text-gray-500 capitalize">{acc.type === 'credit' ? '信用卡' : '現金/銀行'}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className={`font-bold ${acc.balance < 0 ? 'text-danger' : 'text-text'}`}>
+                                        $ {acc.balance.toLocaleString()}
+                                    </p>
+                                    {acc.type === 'credit' && (
+                                        <p className="text-xs text-gray-400">額度 {(acc.limit - Math.abs(acc.balance)).toLocaleString()}</p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // [頁面 4] 設定 Settings (GitHub API 設定入口)
+        const SettingsView = () => {
+            const [token, setToken] = useState('');
+            const [repo, setRepo] = useState('');
+
+            return (
+                <div className="p-4 pb-24">
+                    <h1 className="text-2xl font-bold text-text mb-6">設定</h1>
+                    
+                    <div className="bg-surface rounded-xl shadow-ios overflow-hidden mb-6">
+                        <div className="p-4 border-b border-gray-100">
+                            <h3 className="font-bold mb-2 flex items-center gap-2">
+                                <Icon name="github" size={18} /> 資料同步設定
+                            </h3>
+                            <p className="text-sm text-gray-500 mb-4">設定 GitHub Personal Access Token 以啟用雲端備份。</p>
+                            
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1">GITHUB TOKEN</label>
+                                    <input 
+                                        type="password" 
+                                        value={token} 
+                                        onChange={(e) => setToken(e.target.value)}
+                                        className="w-full bg-gray-100 rounded p-2 text-sm"
+                                        placeholder="ghp_xxxxxxxxxxxx"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1">REPOSITORY (username/repo)</label>
+                                    <input 
+                                        type="text" 
+                                        value={repo}
+                                        onChange={(e) => setRepo(e.target.value)}
+                                        className="w-full bg-gray-100 rounded p-2 text-sm"
+                                        placeholder="username/finance-backup"
+                                    />
+                                </div>
+                                <button className="w-full bg-gray-900 text-white py-2 rounded font-medium mt-2">
+                                    測試連線
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-surface rounded-xl shadow-ios overflow-hidden">
+                        {['匯出 CSV', '匯入備份', '清除所有資料'].map((item, idx) => (
+                            <button key={idx} className="w-full text-left p-4 border-b border-gray-100 last:border-0 flex justify-between items-center active:bg-gray-50">
+                                {item}
+                                <Icon name="chevron-right" size={16} className="text-gray-400" />
+                            </button>
+                        ))}
+                    </div>
+                    
+                    <p className="text-center text-gray-400 text-xs mt-8">Moze Clone PWA v0.1</p>
+                </div>
+            );
+        }
+
+        // --- 4. 主程式 App Shell ---
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('dashboard');
+            
+            // 這裡模擬從資料庫讀取的狀態
+            const [accounts, setAccounts] = useState(initialAccounts);
+            const [categories, setCategories] = useState(initialCategories);
+
+            const renderContent = () => {
+                switch(activeTab) {
+                    case 'dashboard': return <DashboardView accounts={accounts} />;
+                    case 'accounts': return <AccountsView accounts={accounts} />;
+                    case 'entry': return <EntryView accounts={accounts} categories={categories} />;
+                    case 'settings': return <SettingsView />;
+                    default: return <DashboardView accounts={accounts} />;
+                }
+            };
+
+            return (
+                <div className="h-screen w-full max-w-md mx-auto bg-background flex flex-col relative overflow-hidden">
+                    {/* Main Content Area */}
+                    <main className="flex-1 overflow-y-auto no-scrollbar">
+                        {renderContent()}
+                    </main>
+
+                    {/* Bottom Navigation */}
+                    <nav className="bg-surface border-t border-gray-200 safe-bottom">
+                        <div className="flex justify-around items-center h-16">
+                            {[
+                                { id: 'dashboard', icon: 'layout-dashboard', label: '總覽' },
+                                { id: 'accounts', icon: 'wallet', label: '帳戶' },
+                                { id: 'entry', icon: 'plus-circle', label: '記帳', isPrimary: true },
+                                { id: 'projects', icon: 'folder', label: '專案' },
+                                { id: 'settings', icon: 'settings', label: '設定' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
+                                        activeTab === tab.id ? 'text-primary' : 'text-gray-400'
+                                    }`}
+                                >
+                                    {tab.isPrimary ? (
+                                        <div className="-mt-6 bg-primary text-white p-3 rounded-full shadow-lg shadow-blue-200">
+                                            <Icon name={tab.icon} size={28} />
+                                        </div>
+                                    ) : (
+                                        <Icon name={tab.icon} size={24} />
+                                    )}
+                                    <span className="text-[10px] font-medium">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
