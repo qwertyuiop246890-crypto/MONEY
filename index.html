@@ -79,7 +79,8 @@
             RefreshCw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
             AlertCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             AlertTriangle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>,
-            Tag: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94 .94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5"/></svg>
+            Tag: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94 .94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5"/></svg>,
+            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         };
 
         // 安全圖示元件：Fallback 為 null 時不顯示文字
@@ -87,6 +88,32 @@
             if (Icon) return <Icon className={className} />;
             if (fallback === null) return null; 
             return <span className="text-sm font-bold inline-block w-4 text-center">{fallback || "?"}</span>;
+        };
+
+        // --- 本地儲存 Hook ---
+        // (定義一次，確保無重複)
+        const useLocalStorage = (key, initialValue) => {
+            const [storedValue, setStoredValue] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    return item ? JSON.parse(item) : initialValue;
+                } catch (error) {
+                    console.log(error);
+                    return initialValue;
+                }
+            });
+
+            const setValue = (value) => {
+                try {
+                    const valueToStore = value instanceof Function ? value(storedValue) : value;
+                    setStoredValue(valueToStore);
+                    window.localStorage.setItem(key, JSON.stringify(valueToStore));
+                } catch (error) {
+                    console.log(error);
+                }
+            };
+
+            return [storedValue, setValue];
         };
 
         // --- 輔助函式 ---
@@ -149,7 +176,7 @@
             { id: 2, name: '房租', amount: 15000, type: 'expense', frequency: '每月', day: 1, category: '居住', accountId: 2, budgetId: 3, isActive: true },
         ];
 
-        // --- 共用 UI 元件 ---
+        // --- UI 元件 ---
 
         const Card = ({ children, className = "", onClick }) => (
             <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className} ${onClick ? 'cursor-pointer hover:shadow-md transition-all active:scale-[0.99]' : ''}`}>
@@ -191,14 +218,13 @@
             );
         };
 
-        // 自定義確認視窗
         const ConfirmModal = ({ isOpen, onClose, onConfirm, message }) => {
             if (!isOpen) return null;
             return (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[999] px-4 animate-fade-in">
                     <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl scale-100 transform transition-all">
                         <div className="flex items-center gap-3 mb-3 text-red-600">
-                            <Icons.AlertTriangle className="w-6 h-6" />
+                            <SafeIcon icon={Icons.AlertTriangle} fallback="!" className="w-6 h-6" />
                             <h3 className="font-bold text-lg text-gray-800">確認操作</h3>
                         </div>
                         <p className="text-gray-600 mb-6 leading-relaxed whitespace-pre-line">{message}</p>
@@ -624,9 +650,9 @@
                 const actualTx = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && t.date >= start && t.date <= end);
                 const spent = actualTx.reduce((sum, t) => sum + t.amount, 0);
 
-                let recurringForecast = 0;
-                // ... (simplified logic for brevity, assuming recurring prop passed or handled)
-                // Note: In this refactor, I simplified to ensure brackets are correct.
+                // Note: Recurring forecast is simplified here as recurring isn't passed to DashboardView in this refactor.
+                // In a full app, you'd pass recurring down or use Context.
+                let recurringForecast = 0; 
                 return { ...b, spent, recurringForecast, totalEstimated: spent + recurringForecast, cycleStart: start, cycleEnd: end };
                 });
             }, [transactions, budgets]);
@@ -641,6 +667,10 @@
                 const { start, end } = getCycleRange(dashboardCycleDay, formatDate(new Date()));
                 setTxFilter({ accountId: 'all', category: 'all', startDate: start, endDate: end, minAmount: '', type: 'expense' });
                 setActiveTab('transactions');
+            };
+
+             const handleBudgetCardClick = () => {
+                setActiveTab('budget');
             };
 
             return (
@@ -702,11 +732,30 @@
                     </Card>
                 </div>
                 
-                {/* 簡化版面：近期交易 */}
-                 <Card>
-                    <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.ArrowRightLeft} fallback="" className="w-5 h-5 text-blue-500"/> 近期交易</h3></div>
-                    <div className="space-y-3">{transactions.slice(0, 5).map((t) => (<div key={t.id} onClick={() => onOpenEditTx(t)} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"><div className="flex items-center gap-3"><div className={`w-2 h-10 rounded-full ${t.type === 'income' ? 'bg-green-500' : t.type === 'expense' ? 'bg-red-500' : 'bg-blue-500'}`}></div><div><p className="font-medium text-gray-800">{t.note || t.category}</p><p className="text-xs text-gray-500">{t.date} • {t.category}</p></div></div><span className={`font-bold ${t.type === 'income' ? 'text-green-600' : t.type === 'expense' ? 'text-red-600' : 'text-blue-600'}`}>{t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {t.amount.toLocaleString()}</span></div>))}</div>
-                </Card>
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card onClick={handleBudgetCardClick}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.PieChart} fallback="" className="w-5 h-5 text-blue-500"/> 本期預算概況</h3>
+                            <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">查看詳情</span>
+                        </div>
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+                            {budgetStats.map((b, idx) => { 
+                                const percent = Math.min((b.totalEstimated / b.limit) * 100, 100); 
+                                const isOver = b.totalEstimated > b.limit; 
+                                return (
+                                    <div key={idx}>
+                                        <div className="flex justify-between text-sm mb-1"><span className="font-medium">{b.name}</span><span className="text-gray-500 text-xs">預計 ${b.totalEstimated.toLocaleString()} / ${b.limit.toLocaleString()}</span></div>
+                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${isOver ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${percent}%` }}></div></div>
+                                    </div>
+                                ); 
+                            })}
+                        </div>
+                    </Card>
+                     <Card>
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.ArrowRightLeft} fallback="" className="w-5 h-5 text-blue-500"/> 近期交易</h3></div>
+                        <div className="space-y-3">{transactions.slice(0, 5).map((t) => (<div key={t.id} onClick={() => onOpenEditTx(t)} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"><div className="flex items-center gap-3"><div className={`w-2 h-10 rounded-full ${t.type === 'income' ? 'bg-green-500' : t.type === 'expense' ? 'bg-red-500' : 'bg-blue-500'}`}></div><div><p className="font-medium text-gray-800">{t.note || t.category}</p><p className="text-xs text-gray-500">{t.date} • {t.category}</p></div></div><span className={`font-bold ${t.type === 'income' ? 'text-green-600' : t.type === 'expense' ? 'text-red-600' : 'text-blue-600'}`}>{t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {t.amount.toLocaleString()}</span></div>))}</div>
+                    </Card>
+                </div>
                 </div>
             );
         };
@@ -905,8 +954,6 @@
         };
 
         const BudgetsView = ({ budgets, transactions, recurring, onOpenEditTx, onEditBudget, onDeleteBudget, selectedBudgetDetailId, setSelectedBudgetDetailId }) => {
-             // ... simplified logic for budgets view ...
-             // Reusing the same calculation logic
              const budgetStats = useMemo(() => {
                 const today = new Date();
                 return budgets.map(b => {
@@ -936,7 +983,6 @@
                             <button onClick={() => setSelectedBudgetDetailId(null)} className="p-2 hover:bg-gray-100 rounded-full"><SafeIcon icon={Icons.ChevronLeft} fallback="<" className="w-6 h-6"/></button>
                             <div><h2 className="text-2xl font-bold text-gray-800">{budget.name} 明細</h2><p className="text-gray-500 text-sm">週期: {budget.cycleStart} ~ {budget.cycleEnd}</p></div>
                         </div>
-                        {/* ... details content ... */}
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <Card className="bg-blue-50 border-blue-100">
                                     <p className="text-sm text-blue-600 mb-1">總預算額度</p>
@@ -966,7 +1012,6 @@
                                     ))}
                                 </div>
                             </Card>
-                            {/* ... recurring ... */}
                              <Card>
                                 <h3 className="font-bold text-gray-800 mb-4 border-b pb-2">綁定的週期性項目</h3>
                                 <div className="space-y-2">
@@ -1022,12 +1067,15 @@
 
         function FinanceManager() {
             const [activeTab, setActiveTab] = useState('dashboard');
-            const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS);
-            const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
-            const [categories, setCategories] = useState(INITIAL_CATEGORIES);
-            const [budgets, setBudgets] = useState(INITIAL_BUDGETS);
-            const [recurring, setRecurring] = useState(INITIAL_RECURRING);
             
+            // --- 使用 useLocalStorage 來取代 useState，實現資料持久化 ---
+            const [accounts, setAccounts] = useLocalStorage('mymoney_accounts', INITIAL_ACCOUNTS);
+            const [transactions, setTransactions] = useLocalStorage('mymoney_transactions', INITIAL_TRANSACTIONS);
+            const [categories, setCategories] = useLocalStorage('mymoney_categories', INITIAL_CATEGORIES);
+            const [budgets, setBudgets] = useLocalStorage('mymoney_budgets', INITIAL_BUDGETS);
+            const [recurring, setRecurring] = useLocalStorage('mymoney_recurring', INITIAL_RECURRING);
+            const [dashboardCycleDay, setDashboardCycleDay] = useLocalStorage('mymoney_cycle_day', 1);
+
             const [txFilter, setTxFilter] = useState({ accountId: 'all', category: 'all', startDate: '', endDate: '', minAmount: '', type: 'all' });
             const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
 
@@ -1047,11 +1095,9 @@
             const [selectedAccountDetailId, setSelectedAccountDetailId] = useState(null);
             const [selectedBudgetDetailId, setSelectedBudgetDetailId] = useState(null);
             const [accountViewCycleIndex, setAccountViewCycleIndex] = useState(0);
-            const [dashboardCycleDay, setDashboardCycleDay] = useState(1);
             const [dashboardTxFilterMode, setDashboardTxFilterMode] = useState('this_cycle');
 
-            // --- Handlers from FinanceManager ---
-            // Simplified triggering for confirm modal
+            // --- Handlers ---
             const triggerConfirm = (message, action) => {
                 setConfirmModal({
                     isOpen: true,
@@ -1063,13 +1109,24 @@
                 });
             };
 
+            const resetData = () => {
+                 triggerConfirm('確定要重置所有資料嗎？此操作將清除所有紀錄並恢復預設值，且無法復原。', () => {
+                    setAccounts(INITIAL_ACCOUNTS);
+                    setTransactions(INITIAL_TRANSACTIONS);
+                    setCategories(INITIAL_CATEGORIES);
+                    setBudgets(INITIAL_BUDGETS);
+                    setRecurring(INITIAL_RECURRING);
+                    setDashboardCycleDay(1);
+                    alert("資料已重置！");
+                 });
+            };
+
              const handleSaveTransaction = (formData) => {
                 if (!formData.amount || !formData.accountId) return;
 
                 if (editingTxId) {
                     const oldTx = transactions.find(t => t.id === editingTxId);
                     let tempAccounts = [...accounts];
-                    // ... revert logic ...
                      const revertBalance = (accId, amount, type, toAccId) => {
                         tempAccounts = tempAccounts.map(acc => {
                             if (acc.id === accId) {
@@ -1089,7 +1146,6 @@
                     const newAccId = Number(formData.accountId);
                     const newToAccId = formData.toAccountId ? Number(formData.toAccountId) : null;
                     
-                    // ... apply new logic ...
                      tempAccounts = tempAccounts.map(acc => {
                         if (acc.id === newAccId) {
                             if (formData.type === 'expense') return { ...acc, balance: acc.balance - newAmount };
@@ -1107,11 +1163,9 @@
                         ...t, ...formData, amount: newAmount, accountId: newAccId, toAccountId: newToAccId, budgetId: formData.budgetId ? Number(formData.budgetId) : null 
                     } : t));
                 } else {
-                     // ... add logic ...
                      const newAmount = Number(formData.amount);
                      let newTransactions = [];
                      if (formData.type === 'expense' && formData.isInstallment && formData.installmentMonths > 1) {
-                         // ... installment logic ...
                         const count = Number(formData.installmentMonths);
                         const baseAmount = Math.floor(newAmount / count);
                         const remainder = newAmount % count;
@@ -1145,7 +1199,6 @@
                      }
                      setTransactions([...newTransactions, ...transactions]);
 
-                     // Update balance
                      const today = new Date();
                      const txsToProcess = newTransactions.filter(t => new Date(t.date) <= today);
                      setAccounts(prev => prev.map(acc => {
@@ -1193,7 +1246,6 @@
                 setIsTxModalOpen(true);
             };
 
-            // ... other handlers (simplified for space, logic is same) ...
              const handleSaveAccount = (data) => {
                 if(editingAccount) setAccounts(prev => prev.map(a => a.id === editingAccount.id ? {...a, ...data} : a));
                 else setAccounts([...accounts, {...data, id: Date.now(), balance: Number(data.balance)}]);
@@ -1220,7 +1272,6 @@
                 setTransactions(prev => prev.map(t => t.id === txId ? { ...t, reconciled: !t.reconciled } : t));
             };
 
-
             return (
                 <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
                 <ConfirmModal 
@@ -1244,19 +1295,31 @@
                 <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} onSave={handleSaveBudget} initialData={editingBudget} />
                 <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} onSave={handleSaveRecurring} initialData={editingRecurring} accounts={accounts} categories={categories} budgets={budgets} />
                 
-                <aside className="w-full md:w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col">
-                    <div className="flex items-center gap-2 mb-8 px-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xl">$</span></div><h1 className="text-xl font-bold text-gray-800">MyMoney</h1></div>
-                    <nav className="space-y-2 flex-1">
-                    <NavItem id="dashboard" label="儀表板" icon={Icons.LayoutDashboard} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <NavItem id="accounts" label="帳戶管理" icon={Icons.Wallet} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <NavItem id="transactions" label="交易記錄" icon={Icons.ArrowRightLeft} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <NavItem id="reconcile" label="對帳中心" icon={Icons.CheckCircle} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <NavItem id="budget" label="預算與提醒" icon={Icons.PieChart} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    <NavItem id="categories" label="分類管理" icon={Icons.Tag} activeTab={activeTab} setActiveTab={setActiveTab} />
-                    </nav>
+                <aside className="w-full md:w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col justify-between">
+                   <div>
+                        <div className="flex items-center gap-2 mb-8 px-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xl">$</span></div><h1 className="text-xl font-bold text-gray-800">MyMoney</h1></div>
+                        <nav className="space-y-2 flex-1">
+                        <NavItem id="dashboard" label="儀表板" icon={Icons.LayoutDashboard} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="accounts" label="帳戶管理" icon={Icons.Wallet} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="transactions" label="交易記錄" icon={Icons.ArrowRightLeft} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="reconcile" label="對帳中心" icon={Icons.CheckCircle} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="budget" label="預算與提醒" icon={Icons.PieChart} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="categories" label="分類管理" icon={Icons.Tag} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        </nav>
+                   </div>
+                   {/* 重置資料按鈕 (Desktop) */}
+                   <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 mt-4 border-t pt-4">
+                        <SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /> 重置資料
+                   </button>
                 </aside>
 
-                <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10"><div className="flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">$</span></div><h1 className="text-lg font-bold text-gray-800">MyMoney</h1></div><Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button></div>
+                <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
+                    <div className="flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">$</span></div><h1 className="text-lg font-bold text-gray-800">MyMoney</h1></div>
+                    <div className="flex gap-2">
+                        <button onClick={resetData} className="text-gray-400 hover:text-red-500"><SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /></button>
+                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
+                    </div>
+                </div>
 
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-60px)] md:h-screen pb-24 md:pb-8">
                     <div className="max-w-5xl mx-auto">
