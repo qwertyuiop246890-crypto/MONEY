@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>個人財務管家 (MyMoney) - 修復版</title>
+    <title>個人財務管家 (MyMoney) - 雲端同步版</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -77,7 +77,10 @@
             AlertCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             AlertTriangle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>,
             Tag: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94 .94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5"/></svg>,
-            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
+            Cloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/><path d="M12 13.5v-10"/><path d="m9 6 3-3 3 3"/><path d="M17.5 19c2.485 0 4.5-2.015 4.5-4.5S19.985 10 17.5 10c-.552 0-1.085.102-1.577.291C15.352 6.472 11.977 4 8 4 3.582 4 0 7.582 0 12c0 3.866 3.134 7 7 7"/></svg>,
+            UploadCloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>,
+            DownloadCloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>
         };
 
         // 安全圖示元件
@@ -112,9 +115,8 @@
             return [storedValue, setValue];
         };
 
-        // --- 輔助函式 (修正時區問題) ---
+        // --- 輔助函式 ---
         const formatDate = (date) => {
-            // 修正：使用本地時間而非 UTC，避免跨日問題
             const d = new Date(date);
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -178,6 +180,455 @@
             { id: 1, name: 'Netflix 訂閱', amount: 390, type: 'expense', frequency: '每月', day: 5, category: '娛樂', accountId: 3, budgetId: 1, isActive: true },
             { id: 2, name: '房租', amount: 15000, type: 'expense', frequency: '每月', day: 1, category: '居住', accountId: 2, budgetId: 3, isActive: true },
         ];
+
+        // --- UI 元件 ---
+
+        const Card = ({ children, className = "", onClick }) => (
+            <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className} ${onClick ? 'cursor-pointer hover:shadow-md transition-all active:scale-[0.99]' : ''}`}>
+                {children}
+            </div>
+        );
+
+        const Button = ({ children, onClick, variant = 'primary', className = "", type = "button", disabled = false }) => {
+            const baseStyle = "px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+            const variants = {
+                primary: "bg-blue-600 text-white hover:bg-blue-700",
+                secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200",
+                danger: "bg-red-50 text-red-600 hover:bg-red-100",
+                outline: "border border-gray-300 text-gray-700 hover:bg-gray-50",
+                ghost: "text-gray-500 hover:bg-gray-100"
+            };
+            return (
+                <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>
+                    {children}
+                </button>
+            );
+        };
+
+        const Badge = ({ type }) => {
+            const styles = {
+                income: "bg-green-100 text-green-700",
+                expense: "bg-red-100 text-red-700",
+                transfer: "bg-blue-100 text-blue-700",
+                cash: "bg-emerald-100 text-emerald-700",
+                bank: "bg-blue-100 text-blue-700",
+                credit: "bg-purple-100 text-purple-700",
+                active: "bg-green-100 text-green-700",
+                inactive: "bg-gray-100 text-gray-500"
+            };
+            return (
+                <span className={`px-2 py-1 rounded text-xs font-medium ${styles[type] || 'bg-gray-100'}`}>
+                    {type === 'transfer' ? '轉帳' : type === 'expense' ? '支出' : type === 'income' ? '收入' : type}
+                </span>
+            );
+        };
+
+        const ConfirmModal = ({ isOpen, onClose, onConfirm, message }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[999] px-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl scale-100 transform transition-all">
+                        <div className="flex items-center gap-3 mb-3 text-red-600">
+                            <SafeIcon icon={Icons.AlertTriangle} fallback="!" className="w-6 h-6" />
+                            <h3 className="font-bold text-lg text-gray-800">確認操作</h3>
+                        </div>
+                        <p className="text-gray-600 mb-6 leading-relaxed whitespace-pre-line">{message}</p>
+                        <div className="flex gap-3">
+                            <Button onClick={onClose} variant="secondary" className="flex-1">取消</Button>
+                            <Button onClick={onConfirm} variant="danger" className="flex-1">確定</Button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CalculatorKeypad = ({ onConfirm, initialValue = "" }) => {
+            const [expression, setExpression] = useState(initialValue ? String(initialValue) : "");
+
+            const handlePress = (key) => {
+                if (key === 'C') {
+                    setExpression("");
+                } else if (key === '=') {
+                    try {
+                        const result = new Function('return ' + expression)();
+                        setExpression(String(result));
+                    } catch (e) {
+                        setExpression("Error");
+                    }
+                } else if (key === 'OK') {
+                    let finalVal = expression;
+                    if (/[+\-*/]/.test(expression)) {
+                        try {
+                            finalVal = String(new Function('return ' + expression)());
+                        } catch(e) {}
+                    }
+                    onConfirm(finalVal);
+                } else if (key === 'Back') {
+                    setExpression(prev => prev.slice(0, -1));
+                } else {
+                    setExpression(prev => prev + key);
+                }
+            };
+
+            const keys = ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '.', '+'];
+
+            return (
+                <div className="bg-gray-100 p-4 rounded-xl">
+                    <div className="bg-white p-3 rounded-lg mb-4 text-right text-2xl font-mono border border-gray-300 h-14 flex items-center justify-end overflow-hidden">
+                        {expression || "0"}
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                        {keys.map(k => (
+                            <button key={k} type="button" onClick={() => handlePress(k)} className={`p-3 rounded-lg font-bold text-lg shadow-sm active:scale-95 transition-transform ${['C'].includes(k) ? 'bg-red-100 text-red-600' : ['/', '*', '-', '+'].includes(k) ? 'bg-blue-100 text-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{k}</button>
+                        ))}
+                        <button type="button" onClick={() => handlePress('Back')} className="bg-gray-200 text-gray-600 p-3 rounded-lg font-bold">⌫</button>
+                        <button type="button" onClick={() => handlePress('=')} className="bg-yellow-100 text-yellow-700 p-3 rounded-lg font-bold">=</button>
+                        <button type="button" onClick={() => handlePress('OK')} className="col-span-2 bg-blue-600 text-white p-3 rounded-lg font-bold">確認金額</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const NavItem = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
+            <button onClick={() => setActiveTab(id)} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all ${activeTab === id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                <SafeIcon icon={Icon} fallback="•" className="w-5 h-5" /><span className="font-medium">{label}</span>
+            </button>
+        );
+
+        // --- Modals ---
+
+        const TransactionModal = ({ isOpen, onClose, onSave, onDelete, accounts, categories, budgets, initialData }) => {
+            const [form, setForm] = useState({
+                type: 'expense',
+                date: formatDate(new Date()),
+                amount: '',
+                category: '',
+                accountId: '',
+                toAccountId: '',
+                note: '',
+                isInstallment: false,
+                installmentMonths: 3,
+                budgetId: '',
+                reconciled: false
+            });
+            const [showCalculator, setShowCalculator] = useState(false);
+
+            useEffect(() => {
+                if (isOpen) {
+                    setForm({
+                        type: initialData?.type || 'expense',
+                        date: initialData?.date || formatDate(new Date()),
+                        category: initialData?.category || '',
+                        note: initialData?.note || '',
+                        isInstallment: initialData?.isInstallment || false,
+                        installmentMonths: initialData?.installmentMonths || 3,
+                        reconciled: initialData?.reconciled || false,
+                        amount: initialData?.amount !== undefined ? initialData.amount : '',
+                        accountId: initialData?.accountId || '',
+                        toAccountId: initialData?.toAccountId || '',
+                        budgetId: initialData?.budgetId || ''
+                    });
+                }
+            }, [isOpen, initialData]);
+
+            if (!isOpen) return null;
+
+            const isEdit = !!initialData?.id;
+            const isCreditCard = accounts.find(a => String(a.id) === String(form.accountId))?.type === 'credit';
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave(form);
+            };
+
+            const handleDeleteClick = (e) => {
+                e.preventDefault(); 
+                e.stopPropagation();
+                if (onDelete && initialData && initialData.id) {
+                    onDelete(initialData.id);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-fade-in shadow-2xl max-h-[95vh] overflow-y-auto">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800">{isEdit ? '編輯交易' : '新增交易'}</h3>
+                            <button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div className="flex p-1 bg-gray-100 rounded-lg">
+                                {['expense', 'income', 'transfer'].map(type => (
+                                    <button key={type} type="button" onClick={() => setForm({...form, type, category: '', isInstallment: false})} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${form.type === type ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>{type === 'expense' ? '支出' : type === 'income' ? '收入' : '轉帳'}</button>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs text-gray-500 mb-1">日期</label><input type="date" required value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg" /></div>
+                                <div><label className="block text-xs text-gray-500 mb-1">金額</label>
+                                    <div className="relative">
+                                        <input type="text" readOnly placeholder="點擊輸入" value={form.amount} onClick={() => setShowCalculator(true)} className="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 cursor-pointer bg-gray-50" />
+                                        {showCalculator && (<div className="absolute top-full left-0 right-0 z-50 mt-1 shadow-xl"><CalculatorKeypad initialValue={form.amount} onConfirm={(val) => { setForm({...form, amount: val}); setShowCalculator(false); }} /><div className="fixed inset-0 z-[-1]" onClick={() => setShowCalculator(false)}></div></div>)}
+                                    </div>
+                                </div>
+                            </div>
+                            {form.type !== 'transfer' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">分類</label>
+                                    <select required value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">選擇分類</option>
+                                        {(form.type === 'expense' ? categories.expense : categories.income).map(c => (<option key={c} value={c}>{c}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div><label className="block text-xs text-gray-500 mb-1">{form.type === 'transfer' ? '轉出帳戶' : '帳戶'}</label>
+                                <select required value={form.accountId} onChange={e => setForm({...form, accountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option value="">選擇帳戶</option>
+                                    {accounts.map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}
+                                </select>
+                            </div>
+                            {form.type === 'expense' && isCreditCard && !isEdit && (
+                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                    <div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={!!form.isInstallment} onChange={e => setForm({...form, isInstallment: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /><label className="text-sm font-medium text-blue-800">啟用分期</label></div>
+                                    {form.isInstallment && (<div className="flex items-center gap-2"><input type="number" min="2" max="36" value={form.installmentMonths} onChange={e => setForm({...form, installmentMonths: Number(e.target.value)})} className="w-16 p-1 border border-blue-200 rounded text-center text-sm" /><span className="text-sm text-blue-700">期</span></div>)}
+                                </div>
+                            )}
+                            {form.type === 'transfer' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">轉入帳戶</label>
+                                    <select required value={form.toAccountId} onChange={e => setForm({...form, toAccountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">選擇轉入帳戶</option>
+                                        {accounts.filter(a => String(a.id) !== form.accountId).map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div><label className="block text-xs text-gray-500 mb-1">備註</label><input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="例如：午餐" className="w-full p-2 border border-gray-300 rounded-lg" /></div>
+                            {form.type === 'expense' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">歸屬預算</label>
+                                    <select value={form.budgetId} onChange={e => setForm({...form, budgetId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">不列入任何預算</option>
+                                        {budgets.map(b => (<option key={b.id} value={b.id}>{b.name}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div className="flex gap-2 mt-4">
+                                {isEdit && (
+                                    <Button type="button" variant="danger" className="flex-1 bg-red-50 text-red-600 hover:bg-red-100" onClick={handleDeleteClick}>
+                                        <SafeIcon icon={Icons.Trash2} fallback={null} className="w-4 h-4" /> 刪除
+                                    </Button>
+                                )}
+                                <Button type="submit" className="flex-[2]">{isEdit ? '更新交易' : '儲存交易'}</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const AccountModal = ({ isOpen, onClose, onSave, initialData }) => {
+            if (!isOpen) return null;
+            const isEdit = !!initialData?.id;
+            
+            const [form, setForm] = useState({
+                name: '', type: 'cash', balance: 0, cycleStartDay: 1, creditLimit: '', statementDate: '', dueDate: '',
+                ...initialData
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave({
+                    ...form,
+                    balance: Number(form.balance),
+                    cycleStartDay: Number(form.cycleStartDay),
+                    creditLimit: form.creditLimit ? Number(form.creditLimit) : '',
+                    statementDate: form.statementDate ? Number(form.statementDate) : '',
+                    dueDate: form.dueDate ? Number(form.dueDate) : '',
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800">{isEdit ? '編輯帳戶' : '新增帳戶'}</h3>
+                            <button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500">帳戶名稱</label><input required className="w-full p-2 border rounded-lg" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs text-gray-500">類型</label><select className="w-full p-2 border rounded-lg" value={form.type} onChange={e => setForm({...form, type: e.target.value})}><option value="cash">現金</option><option value="bank">銀行</option><option value="credit">信用卡</option></select></div>
+                                <div><label className="block text-xs text-gray-500">餘額</label><input type="number" required className="w-full p-2 border rounded-lg" value={form.balance} onChange={e => setForm({...form, balance: Number(e.target.value)})} /></div>
+                            </div>
+                            <div><label className="block text-xs text-gray-500">帳務週期起始日 (每月)</label><select className="w-full p-2 border rounded-lg" value={form.cycleStartDay} onChange={e => setForm({...form, cycleStartDay: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                            {form.type === 'credit' && (
+                                <div className="bg-purple-50 p-4 rounded-lg space-y-3">
+                                            <div><label className="block text-xs text-purple-700">信用額度 (選填)</label><input type="number" className="w-full p-2 border rounded" value={form.creditLimit} onChange={e => setForm({...form, creditLimit: Number(e.target.value)})} /></div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div><label className="block text-xs text-purple-700">結帳日</label><select className="w-full p-2 border rounded" value={form.statementDate} onChange={e => setForm({...form, statementDate: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                                <div><label className="block text-xs text-purple-700">截止日</label><select className="w-full p-2 border rounded" value={form.dueDate} onChange={e => setForm({...form, dueDate: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                            </div>
+                                </div>
+                            )}
+                            <Button type="submit" className="w-full mt-2">儲存</Button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const BudgetModal = ({ isOpen, onClose, onSave, initialData }) => {
+            if(!isOpen) return null;
+            const isEdit = !!initialData?.id;
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                onSave({
+                    name: formData.get('name'),
+                    limit: Number(formData.get('limit')),
+                    cycleDay: Number(formData.get('cycleDay')),
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 animate-fade-in shadow-2xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800">{isEdit ? '編輯預算' : '新增預算'}</h3>
+                            <button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500 mb-1">預算名稱</label><input name="name" type="text" required defaultValue={initialData?.name} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">預算金額</label><input name="limit" type="number" required defaultValue={initialData?.limit} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">計算起始日</label><select name="cycleDay" required defaultValue={initialData?.cycleDay || 1} className="w-full p-2 border rounded-lg">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                            <Button type="submit" className="w-full">儲存</Button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const RecurringModal = ({ isOpen, onClose, onSave, initialData, accounts, categories, budgets }) => {
+            if(!isOpen) return null;
+            const isEdit = !!initialData?.id;
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                onSave({
+                    name: formData.get('name'),
+                    amount: Number(formData.get('amount')),
+                    type: formData.get('type'),
+                    day: Number(formData.get('day')),
+                    category: formData.get('category'),
+                    accountId: Number(formData.get('accountId')),
+                    budgetId: formData.get('budgetId') ? Number(formData.get('budgetId')) : null,
+                    frequency: '每月', 
+                    isActive: true
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-800">{isEdit ? '編輯週期性帳務' : '新增週期性帳務'}</h3>
+                            <button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500">名稱</label><input name="name" required defaultValue={initialData?.name} className="w-full p-2 border rounded" /></div>
+                            <div className="flex gap-4">
+                                <div className="flex-1"><label className="block text-xs text-gray-500">類型</label><select name="type" defaultValue={initialData?.type || 'expense'} className="w-full p-2 border rounded"><option value="expense">支出</option><option value="income">收入</option></select></div>
+                                <div className="flex-1"><label className="block text-xs text-gray-500">金額</label><input name="amount" type="number" required defaultValue={initialData?.amount} className="w-full p-2 border rounded" /></div>
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1"><label className="block text-xs text-gray-500">執行日</label><select name="day" defaultValue={initialData?.day || 1} className="w-full p-2 border rounded">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                <div className="flex-1"><label className="block text-xs text-gray-500">分類</label><select name="category" required defaultValue={initialData?.category} className="w-full p-2 border rounded">{categories.expense.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            </div>
+                            <div><label className="block text-xs text-gray-500">扣款帳戶</label><select name="accountId" required defaultValue={initialData?.accountId} className="w-full p-2 border rounded">{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                            <div><label className="block text-xs text-gray-500">列入預算</label><select name="budgetId" defaultValue={initialData?.budgetId || ''} className="w-full p-2 border rounded"><option value="">不列入任何預算</option>{budgets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                            <Button type="submit" className="w-full mt-2">儲存</Button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const CategoryManager = ({ categories, onUpdate }) => {
+            const [type, setType] = useState('expense');
+            const [newCat, setNewCat] = useState('');
+            const [editing, setEditing] = useState(null);
+            const [editValue, setEditValue] = useState('');
+
+            const handleAdd = () => {
+                if (!newCat.trim()) return;
+                const updated = { ...categories, [type]: [...categories[type], newCat.trim()] };
+                onUpdate(updated);
+                setNewCat('');
+            };
+
+            const handleEdit = (oldName) => {
+                setEditing(oldName);
+                setEditValue(oldName);
+            };
+
+            const saveEdit = (oldName) => {
+                if (!editValue.trim() || editValue === oldName) {
+                    setEditing(null);
+                    return;
+                }
+                const updatedList = categories[type].map(c => c === oldName ? editValue.trim() : c);
+                onUpdate({ ...categories, [type]: updatedList });
+                setEditing(null);
+            };
+
+            const handleDelete = (name) => {
+                if (!window.confirm(`確定要刪除分類「${name}」嗎？`)) return;
+                const updatedList = categories[type].filter(c => c !== name);
+                onUpdate({ ...categories, [type]: updatedList });
+            };
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-800">分類管理</h2>
+                    <Card className="h-full">
+                        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
+                            <button onClick={() => setType('expense')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}>支出類別</button>
+                            <button onClick={() => setType('income')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}>收入類別</button>
+                        </div>
+                        
+                        <div className="flex gap-2 mb-6">
+                            <input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder={`新增${type === 'expense' ? '支出' : '收入'}類別...`} className="flex-1 p-3 border rounded-xl" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}/>
+                            <Button onClick={handleAdd}><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 新增</Button>
+                        </div>
+
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                            {categories[type].map(cat => (
+                                <div key={cat} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all">
+                                    {editing === cat ? (
+                                        <div className="flex gap-2 flex-1 animate-fade-in">
+                                            <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} className="flex-1 p-2 border rounded-lg outline-blue-500" />
+                                            <Button onClick={() => saveEdit(cat)} className="!px-3 !py-1 text-sm">儲存</Button>
+                                            <Button onClick={() => setEditing(null)} variant="secondary" className="!px-3 !py-1 text-sm">取消</Button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span className="text-gray-700 font-medium px-2">{cat}</span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleEdit(cat)} className="p-2 bg-white border border-gray-200 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="編輯">
+                                                    <SafeIcon icon={Icons.Edit2} fallback="編" className="w-4 h-4"/>
+                                                </button>
+                                                <button onClick={() => handleDelete(cat)} className="p-2 bg-white border border-gray-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors" title="刪除">
+                                                    <SafeIcon icon={Icons.Trash2} fallback="刪" className="w-4 h-4"/>
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                            {categories[type].length === 0 && <div className="text-center text-gray-400 py-4">暫無分類</div>}
+                        </div>
+                    </Card>
+                </div>
+            );
+        };
         // --- UI 元件 ---
 
         const Card = ({ children, className = "", onClick }) => (
@@ -1067,6 +1518,7 @@
         function FinanceManager() {
             const [activeTab, setActiveTab] = useState('dashboard');
             
+            // --- 使用 useLocalStorage 來取代 useState，實現資料持久化 ---
             const [accounts, setAccounts] = useLocalStorage('mymoney_accounts', INITIAL_ACCOUNTS);
             const [transactions, setTransactions] = useLocalStorage('mymoney_transactions', INITIAL_TRANSACTIONS);
             const [categories, setCategories] = useLocalStorage('mymoney_categories', INITIAL_CATEGORIES);
@@ -1098,6 +1550,9 @@
             const [selectedBudgetDetailId, setSelectedBudgetDetailId] = useState(null);
             const [accountViewCycleIndex, setAccountViewCycleIndex] = useState(0);
 
+            // 隱藏的檔案輸入參照，用於匯入功能
+            const fileInputRef = React.useRef(null);
+
             // --- 自動執行週期性帳務 (保持不變) ---
             useEffect(() => {
                 const today = new Date();
@@ -1109,12 +1564,19 @@
 
                 recurring.forEach(r => {
                     if (!r.isActive) return;
+
+                    // 建構本月的執行日期
                     let targetDay = r.day;
                     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
                     if (targetDay > daysInMonth) targetDay = daysInMonth;
+
                     const targetDateObj = new Date(currentYear, currentMonth, targetDay);
                     const targetDateStr = formatDate(targetDateObj);
+
+                    // 如果執行日還沒到，跳過
                     if (targetDateObj > today) return;
+
+                    // 檢查是否已經生成過 (檢查當天是否有同金額、同分類、同備註的交易)
                     const autoNote = `${r.name} (自動入帳)`;
                     const exists = transactions.some(t => 
                         t.date === targetDateStr && 
@@ -1122,6 +1584,7 @@
                         t.category === r.category &&
                         (t.note === autoNote || t.note === r.name)
                     );
+
                     if (!exists) {
                         const newTx = {
                             id: Date.now() + Math.random(),
@@ -1136,8 +1599,10 @@
                             isRecurringAuto: true
                         };
                         newTxs.push(newTx);
+
                         const amount = Number(r.amount);
                         if (!accountsUpdateMap[r.accountId]) accountsUpdateMap[r.accountId] = 0;
+                        
                         if (r.type === 'expense') accountsUpdateMap[r.accountId] -= amount;
                         else if (r.type === 'income') accountsUpdateMap[r.accountId] += amount;
                     }
@@ -1152,10 +1617,46 @@
                         return acc;
                     }));
                 }
+
             }, [recurring, transactions, setTransactions, setAccounts]); 
 
-            // --- Cloud Sync Functions ---
-            // 下載同步
+
+            // --- Handlers ---
+            const triggerConfirm = (message, action) => {
+                setConfirmModal({
+                    isOpen: true,
+                    message,
+                    onConfirm: () => {
+                        action();
+                        setConfirmModal({ isOpen: false, message: '', onConfirm: null });
+                    }
+                });
+            };
+
+            // 匯出備份 (Export)
+            const handleExport = () => {
+                const data = {
+                    accounts,
+                    transactions,
+                    categories,
+                    budgets,
+                    recurring,
+                    dashboardCycleDay,
+                    version: "1.0",
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `MyMoney_Backup_${formatDate(new Date())}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // 匯入還原 (Import) - 改為 Cloud Download
             const handleCloudDownload = async () => {
                 if (!googleScriptUrl) return alert("請先輸入 Google Apps Script URL");
                 setIsCloudLoading(true);
@@ -1210,18 +1711,6 @@
                 } finally {
                     setIsCloudLoading(false);
                 }
-            };
-
-            // --- Handlers ---
-            const triggerConfirm = (message, action) => {
-                setConfirmModal({
-                    isOpen: true,
-                    message,
-                    onConfirm: () => {
-                        action();
-                        setConfirmModal({ isOpen: false, message: '', onConfirm: null });
-                    }
-                });
             };
 
             const resetData = () => {
@@ -1410,6 +1899,15 @@
                 <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} onSave={handleSaveBudget} initialData={editingBudget} />
                 <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} onSave={handleSaveRecurring} initialData={editingRecurring} accounts={accounts} categories={categories} budgets={budgets} />
                 
+                {/* 隱藏的檔案輸入框 */}
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImport} 
+                    accept=".json" 
+                    style={{ display: 'none' }} 
+                />
+
                 <aside className="w-full md:w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col justify-between">
                    <div>
                         <div className="flex items-center gap-2 mb-8 px-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xl">$</span></div><h1 className="text-xl font-bold text-gray-800">MyMoney</h1></div>
@@ -1423,22 +1921,14 @@
                         </nav>
                    </div>
                    
-                   <div className="border-t pt-4 space-y-3">
-                        <div className="px-2">
-                            <label className="text-xs font-medium text-gray-500 mb-1 block flex items-center gap-1"><SafeIcon icon={Icons.Cloud} className="w-3 h-3"/> Google Apps Script URL</label>
-                            <input value={googleScriptUrl} onChange={(e) => setGoogleScriptUrl(e.target.value)} placeholder="https://script.google.com/..." className="w-full p-2 text-xs border rounded bg-gray-50" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 px-2">
-                            <button onClick={handleCloudUpload} disabled={isCloudLoading} className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors disabled:opacity-50">
-                                <SafeIcon icon={Icons.UploadCloud} className="w-5 h-5 mb-1" /> 
-                                <span className="text-xs">{isCloudLoading ? '上傳中' : '上傳雲端'}</span>
-                            </button>
-                            <button onClick={handleCloudDownload} disabled={isCloudLoading} className="flex flex-col items-center justify-center p-2 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors disabled:opacity-50">
-                                <SafeIcon icon={Icons.DownloadCloud} className="w-5 h-5 mb-1" /> 
-                                <span className="text-xs">{isCloudLoading ? '下載中' : '下載同步'}</span>
-                            </button>
-                        </div>
-                        <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 w-full text-left mt-2">
+                   <div className="border-t pt-4 space-y-2">
+                        <button onClick={handleExport} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors px-4 py-2 w-full text-left">
+                            <SafeIcon icon={Icons.Save} className="w-4 h-4" /> 備份資料
+                        </button>
+                        <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors px-4 py-2 w-full text-left">
+                            <SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /> 還原資料
+                        </button>
+                        <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 w-full text-left">
                             <SafeIcon icon={Icons.Trash2} className="w-4 h-4" /> 重置所有資料
                         </button>
                    </div>
@@ -1446,16 +1936,10 @@
 
                 <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
                     <div className="flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">$</span></div><h1 className="text-lg font-bold text-gray-800">MyMoney</h1></div>
-                    <div className="flex gap-2 items-center">
-                        <button onClick={() => {
-                            const url = prompt("請輸入 Google Apps Script URL:", googleScriptUrl);
-                            if(url !== null) setGoogleScriptUrl(url);
-                        }} className="text-gray-400 hover:text-blue-500" title="設定雲端"><SafeIcon icon={Icons.Cloud} className="w-5 h-5" /></button>
-                        
-                        <button onClick={handleCloudUpload} disabled={isCloudLoading} className="text-blue-500 hover:text-blue-700" title="上傳"><SafeIcon icon={Icons.UploadCloud} className="w-5 h-5" /></button>
-                        <button onClick={handleCloudDownload} disabled={isCloudLoading} className="text-green-500 hover:text-green-700" title="下載"><SafeIcon icon={Icons.DownloadCloud} className="w-5 h-5" /></button>
-                        
-                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm ml-2"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
+                    <div className="flex gap-2">
+                        <button onClick={handleExport} className="text-gray-400 hover:text-blue-500" title="備份"><SafeIcon icon={Icons.Save} className="w-5 h-5" /></button>
+                        <button onClick={() => fileInputRef.current.click()} className="text-gray-400 hover:text-blue-500" title="還原"><SafeIcon icon={Icons.RefreshCw} className="w-5 h-5" /></button>
+                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
                     </div>
                 </div>
 
