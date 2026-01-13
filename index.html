@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>個人財務管家 (MyMoney) - 完整旗艦版</title>
+    <title>個人財務管家 (MyMoney)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -25,7 +25,6 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        /* 下拉選單美化 */
         select {
             -webkit-appearance: none;
             -moz-appearance: none;
@@ -41,27 +40,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 錯誤攔截：防止白畫面
-        window.onerror = function(message, source, lineno, colno, error) {
-            const root = document.getElementById('root');
-            if(root) {
-                root.innerHTML = `
-                    <div style="padding: 20px; color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; margin: 20px; border-radius: 5px;">
-                        <h2 style="font-weight: bold; font-size: 1.5em; margin-bottom: 10px;">⚠️ 程式發生錯誤</h2>
-                        <p>這可能是因為複製貼上時程式碼不完整導致。</p>
-                        <hr style="margin: 10px 0; border-color: #f5c6cb;">
-                        <p><strong>錯誤訊息：</strong> ${message}</p>
-                        <p><strong>發生位置：</strong> Line ${lineno}</p>
-                    </div>
-                `;
-            }
-        };
-
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // ==========================================
-        // 1. 圖示集 (Icons)
-        // ==========================================
+        // --- Icon 定義 (保持不變) ---
         const Icons = {
             LayoutDashboard: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>,
             Wallet: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>,
@@ -80,7 +61,7 @@
             X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
             Landmark: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>,
             Banknote: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>,
-            Search: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4-4.3"/></svg>,
+            Search: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
             Filter: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
             Calculator: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>,
             CheckSquare: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
@@ -94,11 +75,7 @@
             AlertCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
             AlertTriangle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>,
             Tag: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94 .94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5"/></svg>,
-            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
-            Cloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/><path d="M12 13.5v-10"/><path d="m9 6 3-3 3 3"/><path d="M17.5 19c2.485 0 4.5-2.015 4.5-4.5S19.985 10 17.5 10c-.552 0-1.085.102-1.577.291C15.352 6.472 11.977 4 8 4 3.582 4 0 7.582 0 12c0 3.866 3.134 7 7 7"/></svg>,
-            UploadCloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>,
-            DownloadCloud: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>,
-            Repeat: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         };
 
         const SafeIcon = ({ icon: Icon, fallback, className }) => {
@@ -107,7 +84,6 @@
             return <span className="text-sm font-bold inline-block w-4 text-center">{fallback || "?"}</span>;
         };
 
-        // --- 2. 輔助 Hooks 與 Functions ---
         const useLocalStorage = (key, initialValue) => {
             const [storedValue, setStoredValue] = useState(() => {
                 try {
@@ -118,7 +94,6 @@
                     return initialValue;
                 }
             });
-
             const setValue = (value) => {
                 try {
                     const valueToStore = value instanceof Function ? value(storedValue) : value;
@@ -128,17 +103,10 @@
                     console.log(error);
                 }
             };
-
             return [storedValue, setValue];
         };
 
-        const formatDate = (date) => {
-            const d = new Date(date);
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
+        const formatDate = (date) => date.toISOString().split('T')[0];
 
         const getCycleRange = (cycleDay, referenceDateStr, offsetMonth = 0) => {
             const refDate = new Date(referenceDateStr);
@@ -167,14 +135,35 @@
             };
         };
 
-        // --- 3. 初始資料 ---
-        const INITIAL_ACCOUNTS = [{ id: 1, name: '現金', type: 'cash', balance: 0, cycleStartDay: 1 }];
-        const INITIAL_CATEGORIES = { expense: ['餐飲', '交通', '購物', '居住', '娛樂'], income: ['薪資', '獎金'] };
-        const INITIAL_BUDGETS = [];
-        const INITIAL_TRANSACTIONS = [];
-        const INITIAL_RECURRING = [];
+        // --- 初始資料 ---
+        const INITIAL_ACCOUNTS = [
+            { id: 1, name: '現金錢包', type: 'cash', balance: 5000, cycleStartDay: 1 },
+            { id: 2, name: '中國信託', type: 'bank', balance: 125000, cycleStartDay: 5 },
+            { id: 3, name: '國泰 Cube 卡', type: 'credit', balance: -8500, creditLimit: 200000, statementDate: 27, dueDate: 12, cycleStartDay: 27 },
+        ];
 
-        // --- 4. 基礎 UI 元件 ---
+        const INITIAL_CATEGORIES = {
+            expense: ['餐飲', '交通', '購物', '居住', '娛樂', '醫療', '教育', '繳稅/費'],
+            income: ['薪資', '獎金', '投資', '兼職', '退款'],
+        };
+
+        const INITIAL_BUDGETS = [
+            { id: 1, name: '本月生活費', limit: 15000, cycleDay: 1 },
+            { id: 2, name: '日本旅遊基金', limit: 30000, cycleDay: 1 },
+            { id: 3, name: '固定支出(房租)', limit: 16000, cycleDay: 5 },
+        ];
+
+        const INITIAL_TRANSACTIONS = [
+            { id: 1, date: '2023-10-25', type: 'expense', amount: 120, category: '餐飲', accountId: 1, note: '早餐', reconciled: true, budgetId: 1 },
+            { id: 2, date: '2023-10-26', type: 'income', amount: 50000, category: '薪資', accountId: 2, note: '十月薪資', reconciled: true, budgetId: null },
+            { id: 3, date: '2023-10-27', type: 'expense', amount: 1200, category: '交通', accountId: 3, note: '加油', reconciled: false, budgetId: 1 },
+        ];
+
+        const INITIAL_RECURRING = [
+            { id: 1, name: 'Netflix 訂閱', amount: 390, type: 'expense', frequency: '每月', day: 5, category: '娛樂', accountId: 3, budgetId: 1, isActive: true },
+            { id: 2, name: '房租', amount: 15000, type: 'expense', frequency: '每月', day: 1, category: '居住', accountId: 2, budgetId: 3, isActive: true },
+        ];
+
         const Card = ({ children, className = "", onClick }) => (
             <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className} ${onClick ? 'cursor-pointer hover:shadow-md transition-all active:scale-[0.99]' : ''}`}>
                 {children}
@@ -236,7 +225,6 @@
 
         const CalculatorKeypad = ({ onConfirm, initialValue = "" }) => {
             const [expression, setExpression] = useState(initialValue ? String(initialValue) : "");
-
             const handlePress = (key) => {
                 if (key === 'C') {
                     setExpression("");
@@ -261,9 +249,7 @@
                     setExpression(prev => prev + key);
                 }
             };
-
             const keys = ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '.', '+'];
-
             return (
                 <div className="bg-gray-100 p-4 rounded-xl">
                     <div className="bg-white p-3 rounded-lg mb-4 text-right text-2xl font-mono border border-gray-300 h-14 flex items-center justify-end overflow-hidden">
@@ -287,20 +273,9 @@
             </button>
         );
 
-        // --- 5. Modals (彈窗) ---
         const TransactionModal = ({ isOpen, onClose, onSave, onDelete, accounts, categories, budgets, initialData }) => {
             const [form, setForm] = useState({
-                type: 'expense',
-                date: formatDate(new Date()),
-                amount: '',
-                category: '',
-                accountId: '',
-                toAccountId: '',
-                note: '',
-                isInstallment: false,
-                installmentMonths: 3,
-                budgetId: '',
-                reconciled: false
+                type: 'expense', date: formatDate(new Date()), amount: '', category: '', accountId: '', toAccountId: '', note: '', isInstallment: false, installmentMonths: 3, budgetId: '', reconciled: false, recurringId: null
             });
             const [showCalculator, setShowCalculator] = useState(false);
 
@@ -317,16 +292,15 @@
                         amount: initialData?.amount !== undefined ? initialData.amount : '',
                         accountId: initialData?.accountId || '',
                         toAccountId: initialData?.toAccountId || '',
-                        budgetId: initialData?.budgetId || ''
+                        budgetId: initialData?.budgetId || '',
+                        recurringId: initialData?.recurringId || null
                     });
                 }
             }, [isOpen, initialData]);
 
             if (!isOpen) return null;
-
             const isEdit = !!initialData?.id;
             const isCreditCard = accounts.find(a => String(a.id) === String(form.accountId))?.type === 'credit';
-
             const handleSubmit = (e) => { e.preventDefault(); onSave(form); };
             const handleDeleteClick = (e) => { e.preventDefault(); e.stopPropagation(); if (onDelete && initialData?.id) onDelete(initialData.id); };
 
@@ -347,18 +321,56 @@
                                 <div><label className="block text-xs text-gray-500 mb-1">日期</label><input type="date" required value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg" /></div>
                                 <div><label className="block text-xs text-gray-500 mb-1">金額</label>
                                     <div className="relative">
-                                        <input type="text" readOnly placeholder="輸入" value={form.amount} onClick={() => setShowCalculator(true)} className="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 cursor-pointer bg-gray-50" />
+                                        <input type="text" readOnly placeholder="點擊輸入" value={form.amount} onClick={() => setShowCalculator(true)} className="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 cursor-pointer bg-gray-50" />
                                         {showCalculator && (<div className="absolute top-full left-0 right-0 z-50 mt-1 shadow-xl"><CalculatorKeypad initialValue={form.amount} onConfirm={(val) => { setForm({...form, amount: val}); setShowCalculator(false); }} /><div className="fixed inset-0 z-[-1]" onClick={() => setShowCalculator(false)}></div></div>)}
                                     </div>
                                 </div>
                             </div>
-                            {form.type !== 'transfer' && <div><label className="block text-xs text-gray-500 mb-1">分類</label><select required value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg"><option value="">選擇分類</option>{(form.type === 'expense' ? categories.expense : categories.income).map(c => (<option key={c} value={c}>{c}</option>))}</select></div>}
-                            <div><label className="block text-xs text-gray-500 mb-1">{form.type === 'transfer' ? '轉出帳戶' : '帳戶'}</label><select required value={form.accountId} onChange={e => setForm({...form, accountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg"><option value="">選擇帳戶</option>{accounts.map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}</select></div>
-                            {form.type === 'expense' && isCreditCard && !isEdit && <div className="bg-blue-50 p-3 rounded-lg border border-blue-100"><div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={!!form.isInstallment} onChange={e => setForm({...form, isInstallment: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /><label className="text-sm font-medium text-blue-800">啟用分期</label></div>{form.isInstallment && (<div className="flex items-center gap-2"><input type="number" min="2" max="36" value={form.installmentMonths} onChange={e => setForm({...form, installmentMonths: Number(e.target.value)})} className="w-16 p-1 border border-blue-200 rounded text-center text-sm" /><span className="text-sm text-blue-700">期</span></div>)}</div>}
-                            {form.type === 'transfer' && <div><label className="block text-xs text-gray-500 mb-1">轉入帳戶</label><select required value={form.toAccountId} onChange={e => setForm({...form, toAccountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg"><option value="">選擇轉入帳戶</option>{accounts.filter(a => String(a.id) !== form.accountId).map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}</select></div>}
-                            <div><label className="block text-xs text-gray-500 mb-1">備註</label><input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg" /></div>
-                            {form.type === 'expense' && <div><label className="block text-xs text-gray-500 mb-1">歸屬預算</label><select value={form.budgetId} onChange={e => setForm({...form, budgetId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg"><option value="">無</option>{budgets.map(b => (<option key={b.id} value={b.id}>{b.name}</option>))}</select></div>}
-                            <div className="flex gap-2 mt-4">{isEdit && <Button type="button" variant="danger" className="flex-1" onClick={handleDeleteClick}><SafeIcon icon={Icons.Trash2} fallback="D" className="w-4 h-4"/> 刪除</Button>}<Button type="submit" className="flex-[2]">{isEdit ? '更新' : '儲存'}</Button></div>
+                            {form.type !== 'transfer' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">分類</label>
+                                    <select required value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">選擇分類</option>
+                                        {(form.type === 'expense' ? categories.expense : categories.income).map(c => (<option key={c} value={c}>{c}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div><label className="block text-xs text-gray-500 mb-1">{form.type === 'transfer' ? '轉出帳戶' : '帳戶'}</label>
+                                <select required value={form.accountId} onChange={e => setForm({...form, accountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option value="">選擇帳戶</option>
+                                    {accounts.map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}
+                                </select>
+                            </div>
+                            {form.type === 'expense' && isCreditCard && !isEdit && (
+                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                    <div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={!!form.isInstallment} onChange={e => setForm({...form, isInstallment: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" /><label className="text-sm font-medium text-blue-800">啟用分期</label></div>
+                                    {form.isInstallment && (<div className="flex items-center gap-2"><input type="number" min="2" max="36" value={form.installmentMonths} onChange={e => setForm({...form, installmentMonths: Number(e.target.value)})} className="w-16 p-1 border border-blue-200 rounded text-center text-sm" /><span className="text-sm text-blue-700">期</span></div>)}
+                                </div>
+                            )}
+                            {form.type === 'transfer' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">轉入帳戶</label>
+                                    <select required value={form.toAccountId} onChange={e => setForm({...form, toAccountId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">選擇轉入帳戶</option>
+                                        {accounts.filter(a => String(a.id) !== form.accountId).map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div><label className="block text-xs text-gray-500 mb-1">備註</label><input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="例如：午餐" className="w-full p-2 border border-gray-300 rounded-lg" /></div>
+                            {form.type === 'expense' && (
+                                <div><label className="block text-xs text-gray-500 mb-1">歸屬預算</label>
+                                    <select value={form.budgetId} onChange={e => setForm({...form, budgetId: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg">
+                                        <option value="">不列入任何預算</option>
+                                        {budgets.map(b => (<option key={b.id} value={b.id}>{b.name}</option>))}
+                                    </select>
+                                </div>
+                            )}
+                            <div className="flex gap-2 mt-4">
+                                {isEdit && (
+                                    <Button type="button" variant="danger" className="flex-1 bg-red-50 text-red-600 hover:bg-red-100" onClick={handleDeleteClick}>
+                                        <SafeIcon icon={Icons.Trash2} fallback={null} className="w-4 h-4" /> 刪除
+                                    </Button>
+                                )}
+                                <Button type="submit" className="flex-[2]">{isEdit ? '更新交易' : '儲存交易'}</Button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -367,283 +379,727 @@
 
         const AccountModal = ({ isOpen, onClose, onSave, initialData }) => {
             if (!isOpen) return null;
+            const isEdit = !!initialData?.id;
             const [form, setForm] = useState({ name: '', type: 'cash', balance: 0, cycleStartDay: 1, creditLimit: '', statementDate: '', dueDate: '', ...initialData });
-            const handleSubmit = (e) => { e.preventDefault(); onSave({ ...form, balance: Number(form.balance), cycleStartDay: Number(form.cycleStartDay) }); };
+            const handleSubmit = (e) => { e.preventDefault(); onSave({ ...form, balance: Number(form.balance), cycleStartDay: Number(form.cycleStartDay), creditLimit: form.creditLimit ? Number(form.creditLimit) : '', statementDate: form.statementDate ? Number(form.statementDate) : '', dueDate: form.dueDate ? Number(form.dueDate) : '' }); };
+
             return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"><div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl max-h-[90vh] overflow-y-auto"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{initialData?.id ? '編輯' : '新增'}帳戶</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-xs text-gray-500">帳戶名稱</label><input required className="w-full p-2 border rounded-lg" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs text-gray-500">類型</label><select className="w-full p-2 border rounded-lg" value={form.type} onChange={e => setForm({...form, type: e.target.value})}><option value="cash">現金</option><option value="bank">銀行</option><option value="credit">信用卡</option></select></div><div><label className="block text-xs text-gray-500">餘額</label><input type="number" required className="w-full p-2 border rounded-lg" value={form.balance} onChange={e => setForm({...form, balance: Number(e.target.value)})} /></div></div><div><label className="block text-xs text-gray-500">起始日</label><select className="w-full p-2 border rounded-lg" value={form.cycleStartDay} onChange={e => setForm({...form, cycleStartDay: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div><Button type="submit" className="w-full mt-2">儲存</Button></form></div></div>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{isEdit ? '編輯帳戶' : '新增帳戶'}</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button></div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500">帳戶名稱</label><input required className="w-full p-2 border rounded-lg" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs text-gray-500">類型</label><select className="w-full p-2 border rounded-lg" value={form.type} onChange={e => setForm({...form, type: e.target.value})}><option value="cash">現金</option><option value="bank">銀行</option><option value="credit">信用卡</option></select></div>
+                                <div><label className="block text-xs text-gray-500">餘額</label><input type="number" required className="w-full p-2 border rounded-lg" value={form.balance} onChange={e => setForm({...form, balance: Number(e.target.value)})} /></div>
+                            </div>
+                            <div><label className="block text-xs text-gray-500">帳務週期起始日 (每月)</label><select className="w-full p-2 border rounded-lg" value={form.cycleStartDay} onChange={e => setForm({...form, cycleStartDay: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                            {form.type === 'credit' && (
+                                <div className="bg-purple-50 p-4 rounded-lg space-y-3">
+                                    <div><label className="block text-xs text-purple-700">信用額度 (選填)</label><input type="number" className="w-full p-2 border rounded" value={form.creditLimit} onChange={e => setForm({...form, creditLimit: Number(e.target.value)})} /></div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="block text-xs text-purple-700">結帳日</label><select className="w-full p-2 border rounded" value={form.statementDate} onChange={e => setForm({...form, statementDate: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                        <div><label className="block text-xs text-purple-700">截止日</label><select className="w-full p-2 border rounded" value={form.dueDate} onChange={e => setForm({...form, dueDate: Number(e.target.value)})}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                    </div>
+                                </div>
+                            )}
+                            <Button type="submit" className="w-full mt-2">儲存</Button>
+                        </form>
+                    </div>
+                </div>
             );
         };
 
         const BudgetModal = ({ isOpen, onClose, onSave, initialData }) => {
             if(!isOpen) return null;
-            const handleSubmit = (e) => { e.preventDefault(); const d = new FormData(e.target); onSave({ name: d.get('name'), limit: Number(d.get('limit')), cycleDay: Number(d.get('cycleDay')) }); };
+            const isEdit = !!initialData?.id;
+            const handleSubmit = (e) => { e.preventDefault(); const formData = new FormData(e.target); onSave({ name: formData.get('name'), limit: Number(formData.get('limit')), cycleDay: Number(formData.get('cycleDay')) }); };
+
             return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"><div className="bg-white rounded-2xl w-full max-w-sm p-6 animate-fade-in shadow-2xl"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{initialData?.id ? '編輯' : '新增'}預算</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-xs text-gray-500">名稱</label><input name="name" required defaultValue={initialData?.name} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs text-gray-500">金額</label><input name="limit" type="number" required defaultValue={initialData?.limit} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs text-gray-500">起始日</label><select name="cycleDay" required defaultValue={initialData?.cycleDay || 1} className="w-full p-2 border rounded-lg">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div><Button type="submit" className="w-full">儲存</Button></form></div></div>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 animate-fade-in shadow-2xl">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{isEdit ? '編輯預算' : '新增預算'}</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button></div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500 mb-1">預算名稱</label><input name="name" type="text" required defaultValue={initialData?.name} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">預算金額</label><input name="limit" type="number" required defaultValue={initialData?.limit} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">計算起始日</label><select name="cycleDay" required defaultValue={initialData?.cycleDay || 1} className="w-full p-2 border rounded-lg">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                            <Button type="submit" className="w-full">儲存</Button>
+                        </form>
+                    </div>
+                </div>
             );
         };
 
         const RecurringModal = ({ isOpen, onClose, onSave, initialData, accounts, categories, budgets }) => {
             if(!isOpen) return null;
-            const handleSubmit = (e) => { e.preventDefault(); const d = new FormData(e.target); onSave({ name: d.get('name'), amount: Number(d.get('amount')), type: d.get('type'), day: Number(d.get('day')), category: d.get('category'), accountId: Number(d.get('accountId')), budgetId: d.get('budgetId') ? Number(d.get('budgetId')) : null, frequency: '每月', isActive: true }); };
+            const isEdit = !!initialData?.id;
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                onSave({
+                    name: formData.get('name'), amount: Number(formData.get('amount')), type: formData.get('type'), day: Number(formData.get('day')), category: formData.get('category'), accountId: Number(formData.get('accountId')), budgetId: formData.get('budgetId') ? Number(formData.get('budgetId')) : null, frequency: '每月', isActive: true
+                });
+            };
+
             return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"><div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl overflow-y-auto max-h-[90vh]"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{initialData?.id ? '編輯' : '新增'}定期扣款</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5"/></button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-xs text-gray-500">名稱</label><input name="name" required defaultValue={initialData?.name} className="w-full p-2 border rounded" /></div><div className="flex gap-4"><div className="flex-1"><label className="block text-xs text-gray-500">類型</label><select name="type" defaultValue={initialData?.type || 'expense'} className="w-full p-2 border rounded"><option value="expense">支出</option><option value="income">收入</option></select></div><div className="flex-1"><label className="block text-xs text-gray-500">金額</label><input name="amount" type="number" required defaultValue={initialData?.amount} className="w-full p-2 border rounded" /></div></div><div className="flex gap-4"><div className="flex-1"><label className="block text-xs text-gray-500">執行日</label><select name="day" defaultValue={initialData?.day || 1} className="w-full p-2 border rounded">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div><div className="flex-1"><label className="block text-xs text-gray-500">分類</label><select name="category" required defaultValue={initialData?.category} className="w-full p-2 border rounded">{categories.expense.map(c => <option key={c} value={c}>{c}</option>)}</select></div></div><div><label className="block text-xs text-gray-500">扣款帳戶</label><select name="accountId" required defaultValue={initialData?.accountId} className="w-full p-2 border rounded">{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div><div><label className="block text-xs text-gray-500">預算</label><select name="budgetId" defaultValue={initialData?.budgetId || ''} className="w-full p-2 border rounded"><option value="">無</option>{budgets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div><Button type="submit" className="w-full mt-2">儲存</Button></form></div></div>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800">{isEdit ? '編輯週期性帳務' : '新增週期性帳務'}</h3><button onClick={onClose}><SafeIcon icon={Icons.X} fallback="X" className="w-5 h-5 text-gray-500"/></button></div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-xs text-gray-500">名稱</label><input name="name" required defaultValue={initialData?.name} className="w-full p-2 border rounded" /></div>
+                            <div className="flex gap-4">
+                                <div className="flex-1"><label className="block text-xs text-gray-500">類型</label><select name="type" defaultValue={initialData?.type || 'expense'} className="w-full p-2 border rounded"><option value="expense">支出</option><option value="income">收入</option></select></div>
+                                <div className="flex-1"><label className="block text-xs text-gray-500">金額</label><input name="amount" type="number" required defaultValue={initialData?.amount} className="w-full p-2 border rounded" /></div>
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1"><label className="block text-xs text-gray-500">執行日</label><select name="day" defaultValue={initialData?.day || 1} className="w-full p-2 border rounded">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div>
+                                <div className="flex-1"><label className="block text-xs text-gray-500">分類</label><select name="category" required defaultValue={initialData?.category} className="w-full p-2 border rounded">{categories.expense.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            </div>
+                            <div><label className="block text-xs text-gray-500">扣款帳戶</label><select name="accountId" required defaultValue={initialData?.accountId} className="w-full p-2 border rounded">{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                            <div><label className="block text-xs text-gray-500">列入預算</label><select name="budgetId" defaultValue={initialData?.budgetId || ''} className="w-full p-2 border rounded"><option value="">不列入任何預算</option>{budgets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                            <Button type="submit" className="w-full mt-2">儲存</Button>
+                        </form>
+                    </div>
+                </div>
             );
         };
-
+        // End of Part 1
+        // Part 2 Start
         const CategoryManager = ({ categories, onUpdate }) => {
-            const [type, setType] = useState('expense'); const [newCat, setNewCat] = useState(''); const [editing, setEditing] = useState(null); const [editValue, setEditValue] = useState('');
+            const [type, setType] = useState('expense');
+            const [newCat, setNewCat] = useState('');
+            const [editing, setEditing] = useState(null);
+            const [editValue, setEditValue] = useState('');
+
             const handleAdd = () => { if (!newCat.trim()) return; onUpdate({ ...categories, [type]: [...categories[type], newCat.trim()] }); setNewCat(''); };
-            const saveEdit = (oldName) => { if (!editValue.trim() || editValue === oldName) { setEditing(null); return; } onUpdate({ ...categories, [type]: categories[type].map(c => c === oldName ? editValue.trim() : c) }); setEditing(null); };
-            const handleDelete = (name) => { if (confirm(`刪除 ${name}?`)) onUpdate({ ...categories, [type]: categories[type].filter(c => c !== name) }); };
+            const handleEdit = (oldName) => { setEditing(oldName); setEditValue(oldName); };
+            const saveEdit = (oldName) => { if (!editValue.trim() || editValue === oldName) { setEditing(null); return; } const updatedList = categories[type].map(c => c === oldName ? editValue.trim() : c); onUpdate({ ...categories, [type]: updatedList }); setEditing(null); };
+            const handleDelete = (name) => { if (!window.confirm(`確定要刪除分類「${name}」嗎？`)) return; const updatedList = categories[type].filter(c => c !== name); onUpdate({ ...categories, [type]: updatedList }); };
+
             return (
-                <div className="space-y-6"><h2 className="text-2xl font-bold text-gray-800">分類管理</h2><Card className="h-full"><div className="flex bg-gray-100 p-1 rounded-lg mb-4"><button onClick={() => setType('expense')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}>支出</button><button onClick={() => setType('income')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}>收入</button></div><div className="flex gap-2 mb-6"><input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="新增..." className="flex-1 p-3 border rounded-xl" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}/><Button onClick={handleAdd}><SafeIcon icon={Icons.Plus} fallback="+"/></Button></div><div className="space-y-2 max-h-[500px] overflow-y-auto">{categories[type].map(cat => (<div key={cat} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-white border">{editing === cat ? (<div className="flex gap-2 flex-1"><input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} className="flex-1 p-2 border rounded" /><Button onClick={() => saveEdit(cat)} className="!px-3 !py-1 text-sm">存</Button><Button onClick={() => setEditing(null)} variant="secondary" className="!px-3 !py-1 text-sm">消</Button></div>) : (<><span className="text-gray-700 px-2">{cat}</span><div className="flex gap-2"><button onClick={() => { setEditing(cat); setEditValue(cat); }} className="p-2 border rounded text-blue-600"><SafeIcon icon={Icons.Edit2} fallback="E"/></button><button onClick={() => handleDelete(cat)} className="p-2 border rounded text-red-600"><SafeIcon icon={Icons.Trash2} fallback="D"/></button></div></>)}</div>))}</div></Card></div>
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-800">分類管理</h2>
+                    <Card className="h-full">
+                        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
+                            <button onClick={() => setType('expense')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'expense' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}>支出類別</button>
+                            <button onClick={() => setType('income')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === 'income' ? 'bg-white shadow text-green-600' : 'text-gray-500'}`}>收入類別</button>
+                        </div>
+                        <div className="flex gap-2 mb-6">
+                            <input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder={`新增${type === 'expense' ? '支出' : '收入'}類別...`} className="flex-1 p-3 border rounded-xl" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}/>
+                            <Button onClick={handleAdd}><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 新增</Button>
+                        </div>
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                            {categories[type].map(cat => (
+                                <div key={cat} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all">
+                                    {editing === cat ? (
+                                        <div className="flex gap-2 flex-1 animate-fade-in"><input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} className="flex-1 p-2 border rounded-lg outline-blue-500" /><Button onClick={() => saveEdit(cat)} className="!px-3 !py-1 text-sm">儲存</Button><Button onClick={() => setEditing(null)} variant="secondary" className="!px-3 !py-1 text-sm">取消</Button></div>
+                                    ) : (
+                                        <><span className="text-gray-700 font-medium px-2">{cat}</span><div className="flex gap-2"><button onClick={() => handleEdit(cat)} className="p-2 bg-white border border-gray-200 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"><SafeIcon icon={Icons.Edit2} fallback="編" className="w-4 h-4"/></button><button onClick={() => handleDelete(cat)} className="p-2 bg-white border border-gray-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors"><SafeIcon icon={Icons.Trash2} fallback="刪" className="w-4 h-4"/></button></div></>
+                                    )}
+                                </div>
+                            ))}
+                            {categories[type].length === 0 && <div className="text-center text-gray-400 py-4">暫無分類</div>}
+                        </div>
+                    </Card>
+                </div>
             );
         };
-        // --- 6. 頁面視圖 (Views) ---
 
-        // 1. 定期扣款視圖 (RecurringView)
-        const RecurringView = ({ recurring, accounts, onEdit, onDelete, onAdd }) => (
-            <div className="space-y-6">
-                <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-gray-800">定期扣款</h2><Button onClick={onAdd}><SafeIcon icon={Icons.Plus} fallback="+"/> 新增</Button></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{recurring.map(r => {
-                    const accName = accounts.find(a => a.id === r.accountId)?.name || '未知';
-                    return (
-                        <Card key={r.id} className="relative border-l-4 border-l-purple-500">
-                            <div className="absolute top-4 right-4 flex gap-2"><button onClick={() => onEdit(r)} className="text-gray-400 hover:text-blue-600"><SafeIcon icon={Icons.Edit2} fallback="E"/></button><button onClick={() => onDelete(r.id)} className="text-gray-400 hover:text-red-600"><SafeIcon icon={Icons.Trash2} fallback="D"/></button></div>
-                            <h4 className="font-bold text-lg text-gray-800">{r.name}</h4><span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600">每月 {r.day} 號</span>
-                            <div className="mt-2 text-sm text-gray-600"><p>金額：<span className="font-bold">${r.amount.toLocaleString()}</span></p><p>帳戶：{accName}</p></div>
-                        </Card>
-                    );
-                })}</div>
-                {recurring.length === 0 && <div className="text-center text-gray-400 py-10">尚無定期扣款設定</div>}
-            </div>
-        );
-
-        // 2. 儀表板視圖 (DashboardView)
-        const DashboardView = ({ accounts, transactions, budgets, recurring, onOpenEditTx, dashboardCycleDay, setDashboardCycleDay, setTxFilter, setActiveTab }) => {
+        const DashboardView = ({ accounts, transactions, budgets, onOpenEditTx, dashboardCycleDay, setDashboardCycleDay, setTxFilter, setActiveTab }) => {
             const totalAssets = useMemo(() => accounts.reduce((sum, acc) => sum + acc.balance, 0), [accounts]);
-            const mStats = useMemo(() => {
+            const monthlyStats = useMemo(() => {
                 const { start, end } = getCycleRange(dashboardCycleDay, formatDate(new Date()));
-                let i = 0, e = 0; transactions.forEach(t => { if (t.date >= start && t.date <= end) { if (t.type === 'income') i += Number(t.amount); if (t.type === 'expense') e += Number(t.amount); } });
-                return { income: i, expense: e, cycleStart: start };
+                let income = 0; let expense = 0;
+                transactions.forEach(t => { if (t.date >= start && t.date <= end) { if (t.type === 'income') income += Number(t.amount); if (t.type === 'expense') expense += Number(t.amount); } });
+                return { income, expense, net: income - expense, cycleStart: start, cycleEnd: end };
             }, [transactions, dashboardCycleDay]);
-            const bStats = useMemo(() => {
+            const budgetStats = useMemo(() => {
                 const today = new Date();
                 return budgets.map(b => {
                     const { start, end } = getCycleRange(b.cycleDay, today);
                     const actualTx = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && t.date >= start && t.date <= end);
                     const spent = actualTx.reduce((sum, t) => sum + t.amount, 0);
-                    let f = 0; recurring.forEach(r => { if (r.budgetId === b.id && r.isActive && r.type === 'expense') { const hasPaid = actualTx.some(t => t.category === r.category && Math.abs(t.amount - r.amount) < 5); if (!hasPaid) f += r.amount; } });
-                    return { ...b, spent, totalEst: spent + f, limit: b.limit };
+                    // 這裡的 spent 已經包含了「已生成的週期性交易」，因此不需預測邏輯
+                    return { ...b, spent, totalEstimated: spent, cycleStart: start, cycleEnd: end };
                 });
-            }, [transactions, budgets, recurring]);
-            
+            }, [transactions, budgets]);
+
+            const handleIncomeCardClick = () => { const { start, end } = getCycleRange(dashboardCycleDay, formatDate(new Date())); setTxFilter({ accountId: 'all', category: 'all', startDate: start, endDate: end, minAmount: '', type: 'income' }); setActiveTab('transactions'); };
+            const handleExpenseCardClick = () => { const { start, end } = getCycleRange(dashboardCycleDay, formatDate(new Date())); setTxFilter({ accountId: 'all', category: 'all', startDate: start, endDate: end, minAmount: '', type: 'expense' }); setActiveTab('transactions'); };
+            const handleBudgetCardClick = () => { setActiveTab('budget'); };
+
             return (
                 <div className="space-y-6">
-                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold">儀表板</h2><div className="flex items-center gap-2"><span className="text-xs text-gray-500">起始日:</span><select value={dashboardCycleDay} onChange={(e) => setDashboardCycleDay(Number(e.target.value))} className="border rounded text-sm">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}</select><Button onClick={() => onOpenEditTx(null)} className="py-1 text-sm">記帳</Button></div></div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Card className="bg-blue-600 text-white"><p className="text-blue-100 text-sm">淨資產</p><h2 className="text-3xl font-bold">${totalAssets.toLocaleString()}</h2></Card><Card onClick={() => { setTxFilter({ accountId: 'all', category: 'all', startDate: mStats.cycleStart, endDate: '', minAmount: '', type: 'income' }); setActiveTab('transactions'); }}><p className="text-sm text-gray-500">本月收入</p><p className="text-2xl font-bold text-green-600">+${mStats.income.toLocaleString()}</p></Card><Card onClick={() => { setTxFilter({ accountId: 'all', category: 'all', startDate: mStats.cycleStart, endDate: '', minAmount: '', type: 'expense' }); setActiveTab('transactions'); }}><p className="text-sm text-gray-500">本月支出</p><p className="text-2xl font-bold text-red-600">-${mStats.expense.toLocaleString()}</p></Card></div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><Card onClick={() => setActiveTab('budget')}><h3 className="font-bold mb-4">預算概況</h3><div className="space-y-4 max-h-[300px] overflow-auto">{bStats.map((b, i) => <div key={i}><div className="flex justify-between text-sm"><span>{b.name}</span><span className="text-gray-500">${b.totalEst.toLocaleString()} / ${b.limit.toLocaleString()}</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${b.totalEst > b.limit ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min((b.totalEst / b.limit) * 100, 100)}%` }}></div></div></div>)}</div></Card><Card><h3 className="font-bold mb-4">近期交易</h3><div className="space-y-3">{transactions.slice(0, 5).map(t => <div key={t.id} onClick={() => onOpenEditTx(t)} className="flex justify-between p-3 bg-gray-50 rounded cursor-pointer"><div><p className="font-medium">{t.note || t.category}</p><p className="text-xs text-gray-500">{t.date}</p></div><span className={`font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>{t.amount.toLocaleString()}</span></div>)}</div></Card></div>
+                <div className="md:hidden space-y-3">
+                    <div className="flex justify-between items-center"><h2 className="text-xl font-bold">儀表板</h2><Button onClick={() => onOpenEditTx(null)} className="py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 記一筆</Button></div>
+                    <div className="bg-white border border-blue-200 rounded-lg shadow-sm p-3 flex flex-col gap-2">
+                        <div className="flex justify-between items-center"><span className="text-sm font-medium text-gray-700">統計起始日</span><div className="relative"><select value={dashboardCycleDay} onChange={(e) => setDashboardCycleDay(Number(e.target.value))} className="bg-white border border-gray-300 text-gray-700 py-1 pl-3 pr-8 rounded leading-tight focus:outline-none focus:border-blue-500 text-sm font-bold" style={{backgroundImage: 'none'}}>{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>每月 {i+1} 號</option>)}</select></div></div>
+                        <div className="text-xs text-blue-500 text-right bg-blue-50 p-1 rounded">目前區間: {getCycleRange(dashboardCycleDay, formatDate(new Date())).start} ~ {getCycleRange(dashboardCycleDay, formatDate(new Date())).end}</div>
+                    </div>
+                </div>
+                <div className="hidden md:flex justify-end gap-2"><div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500">本月起始日:</span><select value={dashboardCycleDay} onChange={(e) => setDashboardCycleDay(Number(e.target.value))} className="text-sm bg-transparent font-medium text-blue-600 outline-none">{[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}</select></div><Button onClick={() => onOpenEditTx(null)}><SafeIcon icon={Icons.Calculator} fallback="" className="w-4 h-4"/> 快速記帳</Button></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none"><p className="text-blue-100 text-sm mb-1">總淨資產</p><h2 className="text-3xl font-bold">NT$ {totalAssets.toLocaleString()}</h2></Card>
+                    <Card onClick={handleIncomeCardClick}><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-3"><div className="p-2 bg-green-100 rounded-full"><SafeIcon icon={Icons.TrendingUp} fallback="" className="w-5 h-5 text-green-600"/></div><span className="text-gray-500 text-sm">本月收入</span></div><span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">點擊查看</span></div><p className="text-2xl font-bold text-gray-800 text-green-600">+ {monthlyStats.income.toLocaleString()}</p><p className="text-xs text-gray-400 mt-2 text-right">週期: {monthlyStats.cycleStart.slice(5)} 起</p></Card>
+                    <Card onClick={handleExpenseCardClick}><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-3"><div className="p-2 bg-red-100 rounded-full"><SafeIcon icon={Icons.TrendingDown} fallback="" className="w-5 h-5 text-red-600"/></div><span className="text-gray-500 text-sm">本月支出</span></div><span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">點擊查看</span></div><p className="text-2xl font-bold text-gray-800 text-red-600">- {monthlyStats.expense.toLocaleString()}</p><p className="text-xs text-gray-400 mt-2 text-right">週期: {monthlyStats.cycleStart.slice(5)} 起</p></Card>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card onClick={handleBudgetCardClick}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.PieChart} fallback="" className="w-5 h-5 text-blue-500"/> 本期預算概況</h3><span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">查看詳情</span></div><div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">{budgetStats.map((b, idx) => { const percent = Math.min((b.totalEstimated / b.limit) * 100, 100); const isOver = b.totalEstimated > b.limit; return (<div key={idx}><div className="flex justify-between text-sm mb-1"><span className="font-medium">{b.name}</span><span className="text-gray-500 text-xs">${b.totalEstimated.toLocaleString()} / ${b.limit.toLocaleString()}</span></div><div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${isOver ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${percent}%` }}></div></div></div>); })}</div></Card>
+                    <Card><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.ArrowRightLeft} fallback="" className="w-5 h-5 text-blue-500"/> 近期交易</h3></div><div className="space-y-3">{transactions.slice(0, 5).map((t) => (<div key={t.id} onClick={() => onOpenEditTx(t)} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"><div className="flex items-center gap-3"><div className={`w-2 h-10 rounded-full ${t.type === 'income' ? 'bg-green-500' : t.type === 'expense' ? 'bg-red-500' : 'bg-blue-500'}`}></div><div><p className="font-medium text-gray-800">{t.note || t.category}</p><p className="text-xs text-gray-500">{t.date} • {t.category}</p></div></div><span className={`font-bold ${t.type === 'income' ? 'text-green-600' : t.type === 'expense' ? 'text-red-600' : 'text-blue-600'}`}>{t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''} {t.amount.toLocaleString()}</span></div>))}</div></Card>
+                </div>
                 </div>
             );
         };
 
-        // 3. 帳戶視圖 (AccountsView)
-        const AccountsView = ({ accounts, transactions, onOpenEditTx, onEditAccount, onDeleteAccount, setAccountViewCycleIndex, setSelectedAccountDetailId, selectedAccountDetailId, accountViewCycleIndex }) => {
+        const ReconciliationView = ({ accounts, transactions, onToggleReconcile, onOpenEdit }) => {
+            const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.id || 0);
+            const currentAccount = accounts.find(a => a.id === Number(selectedAccount));
+            const cycleDay = currentAccount.type === 'credit' ? (currentAccount.statementDate || 1) : (currentAccount.cycleStartDay || 1);
+            const { start, end } = getCycleRange(cycleDay, formatDate(new Date()));
+            const accountTransactions = transactions.filter(t => (t.accountId === Number(selectedAccount) || t.toAccountId === Number(selectedAccount)) && t.date >= start && t.date <= end).sort((a,b) => new Date(b.date) - new Date(a.date));
+            const reconciledTotal = accountTransactions.reduce((sum, t) => { if (!t.reconciled) return sum; let amount = 0; if (t.accountId === Number(selectedAccount)) { if (t.type === 'expense' || t.type === 'transfer') amount -= t.amount; else amount += t.amount; } else if (t.toAccountId === Number(selectedAccount)) { amount += t.amount; } return sum + amount; }, 0);
+
+            return (
+            <div className="max-w-4xl mx-auto space-y-6">
+                <h2 className="text-2xl font-bold text-gray-800">對帳中心</h2>
+                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-sm text-yellow-800 flex items-center gap-2"><SafeIcon icon={Icons.Calendar} fallback="" className="w-4 h-4"/><span>當前對帳週期：{start} 至 {end} (每月 {cycleDay} 號結算)</span></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card><label className="block text-sm font-medium text-gray-700 mb-2">選擇帳戶</label><select value={selectedAccount} onChange={(e) => setSelectedAccount(Number(e.target.value))} className="w-full p-2 border border-gray-300 rounded-lg">{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><div className="mt-4 flex justify-between items-center p-3 bg-gray-50 rounded text-sm"><span className="text-gray-500">系統目前總餘額</span><span className="font-bold text-lg text-gray-800">${currentAccount?.balance.toLocaleString()}</span></div></Card>
+                    <Card className="bg-blue-50 border-blue-100 flex flex-col justify-center items-center"><p className="text-blue-600 font-medium mb-1">本期已對帳淨額</p><p className="text-3xl font-bold text-blue-800">{reconciledTotal > 0 ? '+' : ''}{reconciledTotal.toLocaleString()}</p><p className="text-xs text-blue-400 mt-2">僅包含週期範圍內且已勾選的項目</p></Card>
+                </div>
+                <Card className="overflow-hidden p-0">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center"><h3 className="font-bold text-gray-700">當期交易明細</h3><span className="text-xs text-gray-500">點擊編輯，右側勾選</span></div>
+                    <div className="overflow-x-auto"><table className="w-full text-left"><thead className="border-b border-gray-100 bg-white"><tr><th className="px-4 py-3 text-xs font-medium text-gray-500">日期</th><th className="px-4 py-3 text-xs font-medium text-gray-500">內容</th><th className="px-4 py-3 text-xs font-medium text-gray-500 text-right">金額</th><th className="px-4 py-3 text-xs font-medium text-gray-500 text-center w-20">已對帳</th></tr></thead><tbody className="divide-y divide-gray-50">{accountTransactions.length === 0 ? <tr><td colSpan="4" className="text-center py-6 text-gray-400">本週期尚無交易</td></tr> : accountTransactions.map(t => (<tr key={t.id} onClick={() => onOpenEdit(t)} className="hover:bg-gray-50 cursor-pointer group"><td className="px-4 py-3 text-sm text-gray-600">{t.date}</td><td className="px-4 py-3 text-sm"><div className="font-medium text-gray-800">{t.note || t.category}</div><div className="text-xs text-gray-400">{t.category}</div></td><td className={`px-4 py-3 text-sm font-bold text-right ${t.type === 'income' ? 'text-green-600' : 'text-gray-800'}`}>{t.type === 'expense' ? '-' : ''}{t.amount.toLocaleString()}</td><td className="px-4 py-3 text-center"><button onClick={(e) => onToggleReconcile(e, t.id)} className={`p-1 rounded transition-colors ${t.reconciled ? 'text-blue-600 bg-blue-50' : 'text-gray-300 hover:text-gray-400'}`}>{t.reconciled ? <SafeIcon icon={Icons.CheckSquare} fallback="V" className="w-6 h-6"/> : <SafeIcon icon={Icons.Square} fallback="O" className="w-6 h-6"/>}</button></td></tr>))}</tbody></table></div>
+                </Card>
+            </div>
+            );
+        };
+
+        const TransactionsView = ({ transactions, accounts, categories, budgets, onOpenEdit, onOpenAdd, onDelete, filter, setFilter }) => {
+            const filteredTransactions = transactions.filter(t => {
+                if (filter.accountId !== 'all' && String(t.accountId) !== String(filter.accountId)) return false;
+                if (filter.category !== 'all' && t.category !== filter.category) return false;
+                if (filter.type && filter.type !== 'all' && t.type !== filter.type) return false;
+                if (filter.startDate && t.date < filter.startDate) return false;
+                if (filter.endDate && t.date > filter.endDate) return false;
+                if (filter.minAmount && t.amount < Number(filter.minAmount)) return false;
+                return true;
+            }).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            return (
+                <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"><h2 className="text-2xl font-bold text-gray-800">交易紀錄</h2><Button onClick={onOpenAdd}><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 新增交易</Button></div>
+                <Card className="p-4">
+                    <div className="flex items-center gap-2 mb-3 text-gray-700 font-medium"><SafeIcon icon={Icons.Filter} fallback="" className="w-4 h-4"/> 篩選條件</div>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                        <select className="border p-2 rounded" value={filter.accountId} onChange={e => setFilter({...filter, accountId: e.target.value})}><option value="all">所有帳戶</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+                        <select className="border p-2 rounded" value={filter.type} onChange={e => setFilter({...filter, type: e.target.value})}><option value="all">所有類型</option><option value="expense">支出</option><option value="income">收入</option><option value="transfer">轉帳</option></select>
+                        <select className="border p-2 rounded" value={filter.category} onChange={e => setFilter({...filter, category: e.target.value})}><option value="all">所有分類</option>{categories.expense.concat(categories.income).map(c => <option key={c} value={c}>{c}</option>)}</select>
+                        <input type="date" className="border p-2 rounded" placeholder="開始日期" value={filter.startDate} onChange={e => setFilter({...filter, startDate: e.target.value})} />
+                        <input type="date" className="border p-2 rounded" placeholder="結束日期" value={filter.endDate} onChange={e => setFilter({...filter, endDate: e.target.value})} />
+                        <div className="flex gap-1"><input type="number" className="border p-2 rounded w-full" placeholder="Min $" value={filter.minAmount} onChange={e => setFilter({...filter, minAmount: e.target.value})} /></div>
+                    </div>
+                </Card>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">日期</th><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">類別/預算</th><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">備註</th><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">帳戶</th><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-right">金額</th><th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-center w-24">操作</th></tr></thead><tbody className="divide-y divide-gray-200">
+                        {filteredTransactions.map(t => {
+                            const accountName = accounts.find(a => a.id === t.accountId)?.name || '未知';
+                            const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                            return (
+                            <tr key={t.id} onClick={() => onOpenEdit(t)} className="hover:bg-gray-50 cursor-pointer group">
+                                <td className="px-6 py-4 text-sm text-gray-600">{t.date}</td>
+                                <td className="px-6 py-4"><Badge type={t.type === 'transfer' ? 'transfer' : t.type} /><span className="ml-2 text-sm text-gray-700">{t.category || (t.type === 'transfer' ? '轉帳' : '')}</span>{budgetName && <div className="text-xs text-blue-500 mt-1">[{budgetName}]</div>}{t.recurringId && <div className="text-[10px] text-orange-500 mt-1">週期自動生成</div>}</td>
+                                <td className="px-6 py-4 text-sm text-gray-800">{t.note}{!t.budgetId && t.type === 'expense' && <span className="ml-2 text-[10px] bg-gray-200 px-1 rounded text-gray-600">無預算</span>}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{accountName}</td>
+                                <td className={`px-6 py-4 text-sm font-bold text-right ${t.type === 'income' ? 'text-green-600' : 'text-gray-800'}`}>{t.amount.toLocaleString()}</td>
+                                <td className="px-6 py-4 text-center"><div className="flex justify-center gap-2"><button onClick={(e) => { e.stopPropagation(); onOpenEdit(t); }} className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors" title="編輯"><SafeIcon icon={Icons.Edit2} fallback="編" className="w-4 h-4"/></button><button onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors" title="刪除"><SafeIcon icon={Icons.Trash2} fallback="刪" className="w-4 h-4"/></button></div></td>
+                            </tr>
+                            );
+                        })}
+                </tbody></table></div></div></div>
+            );
+        };
+
+        const AccountsView = ({ accounts, transactions, onOpenEditTx, onDeleteTx, onEditAccount, onDeleteAccount, setAccountViewCycleIndex, setSelectedAccountDetailId, selectedAccountDetailId, accountViewCycleIndex }) => {
             if (selectedAccountDetailId) {
-                const acc = accounts.find(a => a.id === selectedAccountDetailId);
-                const cycleDay = acc.type === 'credit' ? (acc.statementDate || 1) : (acc.cycleStartDay || 1);
-                const range = getCycleRange(cycleDay, formatDate(new Date()), accountViewCycleIndex);
-                const txs = transactions.filter(t => (t.accountId === acc.id || t.toAccountId === acc.id) && t.date >= range.start && t.date <= range.end).sort((a, b) => new Date(b.date) - new Date(a.date));
-                return <div className="space-y-6"><div className="flex items-center gap-4"><button onClick={() => setSelectedAccountDetailId(null)} className="p-2 hover:bg-gray-100 rounded-full"><SafeIcon icon={Icons.ChevronLeft} fallback="<"/></button><h2 className="text-2xl font-bold">{acc.name}</h2></div><Card><div className="flex justify-between mb-4"><button onClick={() => setAccountViewCycleIndex(p => p + 1)} className="p-2"><SafeIcon icon={Icons.ChevronLeft} fallback="<"/></button><span className="font-bold">{range.start} ~ {range.end}</span><button onClick={() => setAccountViewCycleIndex(p => p - 1)} className="p-2"><SafeIcon icon={Icons.ChevronRight} fallback=">"/></button></div><div className="divide-y">{txs.map(t => <div key={t.id} onClick={() => onOpenEditTx(t)} className="py-3 flex justify-between cursor-pointer"><div><div className="font-medium">{t.note || t.category}</div><div className="text-xs text-gray-500">{t.date}</div></div><div className="font-bold">{t.amount.toLocaleString()}</div></div>)}</div></Card></div>;
+                const account = accounts.find(a => a.id === selectedAccountDetailId);
+                const cycleDay = account.type === 'credit' ? (account.statementDate || 1) : (account.cycleStartDay || 1);
+                const currentCycle = getCycleRange(cycleDay, formatDate(new Date()), accountViewCycleIndex);
+                const cycleTransactions = transactions.filter(t => (t.accountId === account.id || t.toAccountId === account.id) && t.date >= currentCycle.start && t.date <= currentCycle.end).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-4"><button onClick={() => setSelectedAccountDetailId(null)} className="p-2 hover:bg-gray-100 rounded-full"><SafeIcon icon={Icons.ChevronLeft} fallback="<" className="w-6 h-6"/></button><div><h2 className="text-2xl font-bold text-gray-800">{account.name} 明細</h2><p className="text-gray-500 text-sm">週期起始日: 每月 {cycleDay} 號</p></div></div>
+                        <Card>
+                            <div className="flex items-center justify-between mb-4 bg-gray-50 p-2 rounded-lg">
+                                <button onClick={() => setAccountViewCycleIndex(prev => prev + 1)} className="p-2 rounded-full hover:bg-white shadow-sm transition-all text-gray-600"><SafeIcon icon={Icons.ChevronLeft} fallback="<" className="w-5 h-5"/></button>
+                                <div className="text-center"><div className="font-bold text-lg text-gray-800">{currentCycle.start} ~ {currentCycle.end}</div><div className="text-xs text-gray-500">{accountViewCycleIndex === 0 ? '本期帳務' : `${Math.abs(accountViewCycleIndex)} 期前`}</div></div>
+                                <div className="flex gap-1">{accountViewCycleIndex > 0 && (<button onClick={() => setAccountViewCycleIndex(0)} className="p-2 rounded-full hover:bg-white shadow-sm transition-all text-blue-600 mr-1" title="回到本期"><SafeIcon icon={Icons.RefreshCw} fallback="O" className="w-4 h-4"/></button>)}<button onClick={() => setAccountViewCycleIndex(prev => prev - 1)} className="p-2 rounded-full hover:bg-white shadow-sm transition-all text-gray-600"><SafeIcon icon={Icons.ChevronRight} fallback=">" className="w-5 h-5"/></button></div>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {cycleTransactions.length === 0 ? <div className="text-center py-10"><p className="text-gray-400">此週期無交易紀錄</p></div> : cycleTransactions.map(t => (
+                                    <div key={t.id} onClick={() => onOpenEditTx(t)} className="py-3 flex justify-between items-center hover:bg-gray-50 px-2 rounded cursor-pointer group transition-colors">
+                                        <div className="flex-1"><div className="font-medium text-gray-800">{t.note || t.category}{t.recurringId && <span className="ml-2 text-[10px] text-orange-500">自動</span>}</div><div className="text-xs text-gray-500">{t.date}</div></div>
+                                        <div className="flex items-center gap-4"><div className={`font-bold ${t.type === 'income' || (t.type === 'transfer' && t.toAccountId === account.id) ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'expense' || (t.type === 'transfer' && t.accountId === account.id) ? '-' : '+'}{t.amount.toLocaleString()}</div><div className="flex gap-1"><button onClick={(e) => { e.stopPropagation(); onOpenEditTx(t); }} className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors" title="編輯"><SafeIcon icon={Icons.Edit2} fallback="編" className="w-4 h-4"/></button><button onClick={(e) => { e.stopPropagation(); onDeleteTx(t.id); }} className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors" title="刪除"><SafeIcon icon={Icons.Trash2} fallback="刪" className="w-4 h-4"/></button></div></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    </div>
+                );
             }
-            return <div className="space-y-6"><div className="flex justify-between"><h2 className="text-2xl font-bold">帳戶管理</h2><Button onClick={() => onEditAccount(null)} variant="outline">新增</Button></div><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{accounts.map(a => <div key={a.id} onClick={() => { setSelectedAccountDetailId(a.id); setAccountViewCycleIndex(0); }} className="cursor-pointer"><Card className="hover:shadow-md"><div className="flex justify-between mb-4"><Badge type={a.type} /></div><h3 className="font-medium text-gray-600">{a.name}</h3><p className={`text-2xl font-bold ${a.balance < 0 ? 'text-red-600' : 'text-gray-800'}`}>{a.balance.toLocaleString()}</p><div className="mt-4 pt-4 border-t flex gap-2"><Button onClick={e => { e.stopPropagation(); onEditAccount(a) }} variant="secondary" className="text-xs flex-1">編輯</Button><Button onClick={e => { e.stopPropagation(); onDeleteAccount(a.id) }} variant="secondary" className="text-xs flex-1 text-red-600">刪除</Button></div></Card></div>)}</div></div>;
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-gray-800">帳戶管理</h2><Button onClick={() => onEditAccount(null)} variant="outline"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 新增帳戶</Button></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {accounts.map(acc => (
+                        <div key={acc.id} onClick={() => { setSelectedAccountDetailId(acc.id); setAccountViewCycleIndex(0); }} className="cursor-pointer">
+                            <Card className="relative group hover:shadow-md transition-shadow hover:border-blue-200">
+                                <div className="flex justify-between items-start mb-4"><div className="p-3 bg-blue-50 rounded-xl">{acc.type === 'credit' ? <SafeIcon icon={Icons.CreditCard} fallback="卡" className="w-6 h-6 text-blue-600"/> : acc.type === 'bank' ? <SafeIcon icon={Icons.Landmark} fallback="銀" className="w-6 h-6 text-blue-600"/> : <SafeIcon icon={Icons.Banknote} fallback="錢" className="w-6 h-6 text-blue-600"/>}</div><Badge type={acc.type} /></div>
+                                <h3 className="text-gray-600 font-medium mb-1">{acc.name}</h3><p className={`text-2xl font-bold ${acc.balance < 0 ? 'text-red-600' : 'text-gray-800'}`}>NT$ {acc.balance.toLocaleString()}</p>
+                                <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2"><Button onClick={(e) => { e.stopPropagation(); onEditAccount(acc); }} variant="secondary" className="text-xs py-1 h-8 flex-1"><SafeIcon icon={Icons.Edit2} fallback={null} className="w-3 h-3"/> 編輯</Button><Button onClick={(e) => { e.stopPropagation(); onDeleteAccount(acc.id); }} variant="secondary" className="text-xs py-1 h-8 flex-1 text-red-600 hover:bg-red-50"><SafeIcon icon={Icons.Trash2} fallback={null} className="w-3 h-3"/> 刪除</Button></div>
+                            </Card>
+                        </div>
+                    ))}
+                    </div>
+                </div>
+            );
         };
 
-        // 4. 交易列表視圖 (TransactionsView)
-        const TransactionsView = ({ transactions, accounts, categories, onOpenEdit, onOpenAdd, filter, setFilter }) => {
-            const filtered = transactions.filter(t => (filter.accountId === 'all' || String(t.accountId) === String(filter.accountId)) && (filter.category === 'all' || t.category === filter.category) && (filter.type === 'all' || t.type === filter.type) && (!filter.startDate || t.date >= filter.startDate) && (!filter.endDate || t.date <= filter.endDate)).sort((a, b) => new Date(b.date) - new Date(a.date));
-            return <div className="space-y-6"><div className="flex justify-between items-center"><h2 className="text-2xl font-bold">交易紀錄</h2><Button onClick={onOpenAdd}>新增</Button></div><Card><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><select className="border p-2 rounded" value={filter.accountId} onChange={e => setFilter({ ...filter, accountId: e.target.value })}><option value="all">所有帳戶</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><select className="border p-2 rounded" value={filter.type} onChange={e => setFilter({ ...filter, type: e.target.value })}><option value="all">類型</option><option value="expense">支出</option><option value="income">收入</option></select><input type="date" className="border p-2 rounded" value={filter.startDate} onChange={e => setFilter({ ...filter, startDate: e.target.value })} /><input type="date" className="border p-2 rounded" value={filter.endDate} onChange={e => setFilter({ ...filter, endDate: e.target.value })} /></div></Card><div className="bg-white rounded-xl shadow-sm border overflow-hidden"><table className="w-full text-left"><thead className="bg-gray-50 border-b"><tr><th className="px-6 py-3 text-xs text-gray-500">日期</th><th className="px-6 py-3 text-xs text-gray-500">內容</th><th className="px-6 py-3 text-xs text-gray-500 text-right">金額</th></tr></thead><tbody className="divide-y">{filtered.map(t => <tr key={t.id} onClick={() => onOpenEdit(t)} className="hover:bg-gray-50 cursor-pointer"><td className="px-6 py-4 text-sm">{t.date}</td><td className="px-6 py-4 text-sm">{t.note || t.category}</td><td className={`px-6 py-4 text-sm font-bold text-right ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>{t.amount.toLocaleString()}</td></tr>)}</tbody></table></div></div>;
-        };
+        const BudgetsView = ({ budgets, transactions, recurring, onOpenEditTx, onEditBudget, onDeleteBudget, selectedBudgetDetailId, setSelectedBudgetDetailId }) => {
+             const budgetStats = useMemo(() => {
+                const today = new Date();
+                return budgets.map(b => {
+                    const { start, end } = getCycleRange(b.cycleDay, today);
+                    const actualTx = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && t.date >= start && t.date <= end);
+                    const spent = actualTx.reduce((sum, t) => sum + t.amount, 0);
+                    
+                    // 這裡計算「未來」的預測，只看還沒發生的
+                    let recurringForecast = 0;
+                    recurring.forEach(r => {
+                        if (r.budgetId === b.id && r.isActive && r.type === 'expense') {
+                            // 檢查這個週期是否已經有這個 recurringId 的交易
+                            const hasHappened = actualTx.some(t => t.recurringId === r.id);
+                             // 如果還沒發生，且日子還沒到，才算預測 (避免雙重計算)
+                            if (!hasHappened) {
+                                recurringForecast += r.amount;
+                            }
+                        }
+                    });
+                    return { ...b, spent, recurringForecast, totalEstimated: spent + recurringForecast, cycleStart: start, cycleEnd: end };
+                });
+            }, [transactions, budgets, recurring]);
 
-        // 5. 預算視圖 (BudgetsView)
-        const BudgetsView = ({ budgets, onEditBudget, onDeleteBudget }) => (
-            <div className="space-y-6"><div className="flex justify-between items-center"><h2 className="text-2xl font-bold">預算管理</h2><Button onClick={() => onEditBudget(null)}>新增</Button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{budgets.map(b => <Card key={b.id} className="relative"><div className="absolute top-4 right-4 flex gap-2"><button onClick={() => onEditBudget(b)} className="text-blue-500"><SafeIcon icon={Icons.Edit2} fallback="E"/></button><button onClick={() => onDeleteBudget(b.id)} className="text-red-500"><SafeIcon icon={Icons.Trash2} fallback="D"/></button></div><h4 className="font-bold">{b.name}</h4><p className="text-2xl font-bold text-blue-600">${b.limit.toLocaleString()}</p></Card>)}</div></div>
-        );
+            if (selectedBudgetDetailId) {
+                const budget = budgetStats.find(b => b.id === selectedBudgetDetailId);
+                if (!budget) return <div className="p-4">預算不存在</div>;
+                const budgetTransactions = transactions.filter(t => t.budgetId === budget.id && t.date >= budget.cycleStart && t.date <= budget.cycleEnd).sort((a,b) => new Date(b.date) - new Date(a.date));
+                const recurringItems = recurring.filter(r => r.budgetId === budget.id && r.isActive);
 
-        // 6. 對帳視圖 (ReconciliationView)
-        const ReconciliationView = ({ accounts, transactions, onToggleReconcile }) => {
-            const [selAcc, setSelAcc] = useState(accounts[0]?.id);
-            const txs = transactions.filter(t => (t.accountId == selAcc || t.toAccountId == selAcc)).sort((a, b) => new Date(b.date) - new Date(a.date));
-            return <div className="space-y-6"><h2 className="text-2xl font-bold">對帳中心</h2><Card><select value={selAcc} onChange={e => setSelAcc(Number(e.target.value))} className="w-full p-2 border rounded mb-4">{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><div className="divide-y">{txs.map(t => <div key={t.id} className="flex justify-between items-center py-3"><div><p className="font-medium">{t.note || t.category}</p><p className="text-xs text-gray-500">{t.date}</p></div><div className="flex items-center gap-4"><span className="font-bold">{t.amount.toLocaleString()}</span><input type="checkbox" checked={t.reconciled} onChange={e => onToggleReconcile(e, t.id)} className="w-5 h-5" /></div></div>)}</div></Card></div>;
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-4"><button onClick={() => setSelectedBudgetDetailId(null)} className="p-2 hover:bg-gray-100 rounded-full"><SafeIcon icon={Icons.ChevronLeft} fallback="<" className="w-6 h-6"/></button><div><h2 className="text-2xl font-bold text-gray-800">{budget.name} 明細</h2><p className="text-gray-500 text-sm">週期: {budget.cycleStart} ~ {budget.cycleEnd}</p></div></div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="bg-blue-50 border-blue-100"><p className="text-sm text-blue-600 mb-1">總預算額度</p><p className="text-2xl font-bold text-blue-800">${budget.limit.toLocaleString()}</p></Card>
+                                <Card><p className="text-sm text-gray-500 mb-1">目前已支出</p><p className="text-2xl font-bold text-gray-800">${budget.spent.toLocaleString()}</p></Card>
+                                <Card className={budget.totalEstimated > budget.limit ? 'bg-red-50 border-red-100' : 'bg-gray-50'}><p className={`text-sm mb-1 ${budget.totalEstimated > budget.limit ? 'text-red-600' : 'text-gray-500'}`}>預計總支出 (含未扣款)</p><div className="flex items-end gap-2"><p className={`text-2xl font-bold ${budget.totalEstimated > budget.limit ? 'text-red-700' : 'text-gray-800'}`}>${budget.totalEstimated.toLocaleString()}</p>{budget.recurringForecast > 0 && <span className="text-xs text-gray-400 mb-1">(含預測 ${budget.recurringForecast.toLocaleString()})</span>}</div></Card>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                             <Card><h3 className="font-bold text-gray-800 mb-4 border-b pb-2">本期實際支出紀錄</h3><div className="space-y-2">{budgetTransactions.length === 0 ? <p className="text-gray-400 text-sm">尚無支出紀錄</p> : budgetTransactions.map(t => (<div key={t.id} onClick={() => onOpenEditTx(t)} className="flex justify-between p-2 hover:bg-gray-50 rounded cursor-pointer"><div><p className="text-sm font-medium">{t.note || t.category}{t.recurringId && <span className="text-orange-500 ml-1">(自動)</span>}</p><p className="text-xs text-gray-500">{t.date}</p></div><span className="font-bold text-gray-800">${t.amount.toLocaleString()}</span></div>))}</div></Card>
+                             <Card><h3 className="font-bold text-gray-800 mb-4 border-b pb-2">綁定的週期性項目</h3><div className="space-y-2">{recurringItems.length === 0 ? <p className="text-gray-400 text-sm">無綁定項目</p> : recurringItems.map(r => { 
+                                 // 檢查這個週期是否已經有這個 recurringId 的交易
+                                 const actualTx = budgetTransactions.find(t => t.recurringId === r.id);
+                                 const isPaid = !!actualTx;
+                                 return (<div key={r.id} className="flex justify-between p-2 items-center"><div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${isPaid ? 'bg-green-500' : 'bg-orange-400'}`}></div><div><p className="text-sm font-medium">{r.name}</p><p className="text-xs text-gray-500">{r.day}號 • {isPaid ? '本期已支付' : '尚未扣款'}</p></div></div><span className={`font-bold ${isPaid ? 'text-gray-400 line-through' : 'text-gray-800'}`}>${r.amount.toLocaleString()}</span></div>); })}</div></Card>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><div><h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><SafeIcon icon={Icons.PieChart} fallback="" className="w-5 h-5"/> 預算管理</h2><p className="text-sm text-gray-500">預算採用「專款專用」制，點擊卡片查看明細。</p></div><div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded">今天: {formatDate(new Date())}</div></div>
+                    <div className="flex justify-end"><Button onClick={() => onEditBudget(null)}><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/> 新增自訂預算</Button></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {budgetStats.map((b) => {
+                            const totalUsed = b.totalEstimated; 
+                            const percent = Math.min((totalUsed / b.limit) * 100, 100);
+                            const isOver = totalUsed > b.limit;
+                            const available = b.limit - totalUsed;
+                            return (
+                                <Card key={b.id} onClick={() => setSelectedBudgetDetailId(b.id)} className="relative group border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-all">
+                                    <div className="absolute top-4 right-4 flex gap-2"><button onClick={(e) => { e.stopPropagation(); onEditBudget(b); }} className="text-gray-400 hover:text-blue-600 p-1"><SafeIcon icon={Icons.Edit2} fallback="編" className="w-4 h-4"/></button><button onClick={(e) => { e.stopPropagation(); onDeleteBudget(b.id); }} className="text-gray-400 hover:text-red-600 p-1"><SafeIcon icon={Icons.Trash2} fallback="刪" className="w-4 h-4"/></button></div>
+                                    <div className="flex justify-between items-end mb-2"><div><h4 className="font-bold text-lg text-gray-800">{b.name}</h4><p className="text-xs text-gray-500">週期: {b.cycleStart.slice(5)} ~ {b.cycleEnd.slice(5)}</p></div><div className="text-right"><span className={`text-xl font-bold ${isOver ? 'text-red-600' : 'text-gray-800'}`}>${totalUsed.toLocaleString()}</span><span className="text-gray-400 text-sm"> / ${b.limit.toLocaleString()}</span></div></div>
+                                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2"><div className={`h-full rounded-full ${isOver ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${percent}%` }}></div></div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        {b.recurringForecast > 0 ? (<div className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded flex items-center gap-1 font-medium"><SafeIcon icon={Icons.Calendar} fallback="" className="w-3 h-3"/> 含預期待繳 ${b.recurringForecast.toLocaleString()}</div>) : <span></span>}
+                                        <span className={available < 0 ? 'text-red-500 font-bold' : 'text-green-600'}>{available < 0 ? `超支 ${Math.abs(available).toLocaleString()}` : `剩餘 ${available.toLocaleString()}`}</span>
+                                    </div>
+                                </Card>
+                            )
+                        })}
+                    </div>
+                </div>
+            );
         };
-        // --- 7. 主程式邏輯 (Main) ---
+        // End of Part 2
+       // --- Part 3 Start ---
         function FinanceManager() {
             const [activeTab, setActiveTab] = useState('dashboard');
             
+            // --- 使用 useLocalStorage ---
             const [accounts, setAccounts] = useLocalStorage('mymoney_accounts', INITIAL_ACCOUNTS);
             const [transactions, setTransactions] = useLocalStorage('mymoney_transactions', INITIAL_TRANSACTIONS);
             const [categories, setCategories] = useLocalStorage('mymoney_categories', INITIAL_CATEGORIES);
             const [budgets, setBudgets] = useLocalStorage('mymoney_budgets', INITIAL_BUDGETS);
             const [recurring, setRecurring] = useLocalStorage('mymoney_recurring', INITIAL_RECURRING);
-            const [cycleDay, setCycleDay] = useLocalStorage('mymoney_cycle_day', 1);
-            const [gasUrl, setGasUrl] = useLocalStorage('mymoney_gas_url', '');
-            const [loading, setLoading] = useState(false);
+            const [dashboardCycleDay, setDashboardCycleDay] = useLocalStorage('mymoney_cycle_day', 1);
 
-            // Filter & Modal States
-            const [filter, setFilter] = useState({ accountId: 'all', category: 'all', startDate: '', endDate: '', minAmount: '', type: 'all' });
+            const [txFilter, setTxFilter] = useState({ accountId: 'all', category: 'all', startDate: '', endDate: '', minAmount: '', type: 'all' });
             const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
-            const [isTxModalOpen, setIsTxModalOpen] = useState(false); const [editingTxData, setEditingTxData] = useState(null);
-            const [isAccountModalOpen, setIsAccountModalOpen] = useState(false); const [editingAccount, setEditingAccount] = useState(null);
-            const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false); const [editingBudget, setEditingBudget] = useState(null);
-            const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false); const [editingRecurring, setEditingRecurring] = useState(null);
+
+            const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+            const [editingTxId, setEditingTxId] = useState(null);
+            const [editingTxData, setEditingTxData] = useState(null);
+
+            const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+            const [editingAccount, setEditingAccount] = useState(null);
+
+            const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+            const [editingBudget, setEditingBudget] = useState(null);
+
+            const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+            const [editingRecurring, setEditingRecurring] = useState(null);
+
             const [selectedAccountDetailId, setSelectedAccountDetailId] = useState(null);
             const [selectedBudgetDetailId, setSelectedBudgetDetailId] = useState(null);
             const [accountViewCycleIndex, setAccountViewCycleIndex] = useState(0);
 
-            // --- 自動記帳邏輯 (Auto Recurring) ---
+            // --- 核心修正：自動處理週期性帳務 ---
+            // 每次載入或 recurring 變動時，檢查是否需要生成本月的交易
             useEffect(() => {
+                if (recurring.length === 0) return;
+
                 const today = new Date();
-                let newTxs = [];
-                let accUpdates = {};
-                
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth(); // 0-11
+                const todayDate = today.getDate();
+
+                let newGeneratedTxs = [];
+                let accountsUpdateMap = {}; // 用來暫存帳戶餘額變動 { accountId: changeAmount }
+
                 recurring.forEach(r => {
                     if (!r.isActive) return;
-                    // 計算本月執行日
-                    let d = r.day;
-                    const maxD = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-                    if (d > maxD) d = maxD;
-                    const tDate = new Date(today.getFullYear(), today.getMonth(), d);
+
+                    // 檢查本月是否已經產生過這筆週期性交易
+                    // 邏輯：檢查 transactions 中是否有相同的 recurringId，且日期是在這個月
+                    // 注意：這裡簡化處理，只檢查「當前月份」是否已生成。
                     
-                    // 如果今天已經過了執行日，且還沒記帳，就執行
-                    if (tDate <= today) {
-                        const dateStr = formatDate(tDate);
-                        const autoNote = `${r.name} (自動入帳)`;
-                        const exists = transactions.some(t => t.date === dateStr && Math.abs(t.amount - r.amount) < 1 && t.category === r.category && (t.note === autoNote || t.note === r.name));
-                        
+                    // 1. 判斷是否「時間到了」
+                    if (todayDate >= r.day) {
+                        const targetDateObj = new Date(currentYear, currentMonth, r.day);
+                        const targetDateStr = formatDate(targetDateObj);
+
+                        // 2. 檢查是否已存在
+                        const exists = transactions.some(t => 
+                            t.recurringId === r.id && 
+                            t.date.substring(0, 7) === targetDateStr.substring(0, 7) // 比對 YYYY-MM
+                        );
+
                         if (!exists) {
-                            newTxs.push({ id: Date.now() + Math.random(), date: dateStr, type: r.type, amount: r.amount, category: r.category, accountId: r.accountId, note: autoNote, reconciled: false, budgetId: r.budgetId, isRecurringAuto: true });
-                            if (!accUpdates[r.accountId]) accUpdates[r.accountId] = 0;
-                            accUpdates[r.accountId] += (r.type === 'expense' ? -r.amount : r.amount);
+                            // 3. 不存在則生成新交易
+                            const amount = Number(r.amount);
+                            const newTx = {
+                                id: Date.now() + Math.random(), // 確保 ID 唯一
+                                date: targetDateStr,
+                                type: r.type,
+                                amount: amount,
+                                category: r.category,
+                                accountId: r.accountId,
+                                note: `${r.name} (自動)`,
+                                budgetId: r.budgetId,
+                                reconciled: false,
+                                recurringId: r.id, // 標記為週期性來源
+                                toAccountId: null
+                            };
+                            newGeneratedTxs.push(newTx);
+
+                            // 準備更新餘額
+                            const currentChange = accountsUpdateMap[r.accountId] || 0;
+                            if (r.type === 'expense') {
+                                accountsUpdateMap[r.accountId] = currentChange - amount;
+                            } else if (r.type === 'income') {
+                                accountsUpdateMap[r.accountId] = currentChange + amount;
+                            }
                         }
                     }
                 });
 
-                if (newTxs.length > 0) {
-                    setTransactions(p => [...newTxs, ...p]);
-                    setAccounts(p => p.map(a => accUpdates[a.id] ? { ...a, balance: a.balance + accUpdates[a.id] } : a));
-                }
-            }, [recurring, transactions]);
+                // 4. 如果有新生成的交易，一次性更新 State
+                if (newGeneratedTxs.length > 0) {
+                    // 更新交易列表
+                    setTransactions(prev => [...newGeneratedTxs, ...prev]);
 
-            // --- Cloud Sync ---
-            const syncDownload = async () => {
-                if (!gasUrl) return alert("請先設定 API URL"); setLoading(true);
-                try {
-                    const res = await fetch(gasUrl); const data = await res.json();
-                    if (confirm("確定覆蓋本機資料?")) {
-                        if(data.mymoney_accounts) setAccounts(JSON.parse(data.mymoney_accounts));
-                        if(data.mymoney_transactions) setTransactions(JSON.parse(data.mymoney_transactions));
-                        if(data.mymoney_categories) setCategories(JSON.parse(data.mymoney_categories));
-                        if(data.mymoney_budgets) setBudgets(JSON.parse(data.mymoney_budgets));
-                        if(data.mymoney_recurring) setRecurring(JSON.parse(data.mymoney_recurring));
-                        alert("同步成功");
+                    // 更新帳戶餘額
+                    setAccounts(prev => prev.map(acc => {
+                        const change = accountsUpdateMap[acc.id];
+                        if (change) {
+                            return { ...acc, balance: acc.balance + change };
+                        }
+                        return acc;
+                    }));
+                    
+                    // 可以在這裡加一個簡單的通知 (Optional)
+                    console.log(`已自動生成 ${newGeneratedTxs.length} 筆週期性帳務`);
+                }
+
+            }, [recurring,  /* 注意：這裡不依賴 transactions 或 accounts 以免無窮迴圈，只依賴 recurring 和時間 */]); 
+            // 補充：為了確保安全，實務上 transactions 加入依賴需要很小心，這裡利用邏輯確保同一月份不會重複生成。
+
+
+            // --- Handlers ---
+            const triggerConfirm = (message, action) => {
+                setConfirmModal({
+                    isOpen: true,
+                    message,
+                    onConfirm: () => {
+                        action();
+                        setConfirmModal({ isOpen: false, message: '', onConfirm: null });
                     }
-                } catch (e) { alert("錯誤: " + e.message); } finally { setLoading(false); }
-            };
-            const syncUpload = async () => {
-                if (!gasUrl) return alert("請先設定 API URL"); setLoading(true);
-                try {
-                    const tasks = [
-                        { key: 'mymoney_accounts', value: JSON.stringify(accounts) },
-                        { key: 'mymoney_categories', value: JSON.stringify(categories) },
-                        { key: 'mymoney_budgets', value: JSON.stringify(budgets) },
-                        { key: 'mymoney_recurring', value: JSON.stringify(recurring) },
-                        { key: 'mymoney_transactions', value: JSON.stringify(transactions) }
-                    ];
-                    for (const t of tasks) { await fetch(gasUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify(t) }); await new Promise(r => setTimeout(r, 300)); }
-                    alert("上傳成功");
-                } catch (e) { alert("錯誤: " + e.message); } finally { setLoading(false); }
+                });
             };
 
-            // Handlers
-            const saveTx = (f) => {
-                const amt = Number(f.amount);
-                if(editingTxData){
-                    const old = transactions.find(t=>t.id===editingTxData.id);
-                    setAccounts(prev => {
-                        let temp = [...prev];
-                        const oldAcc = temp.find(a=>a.id==old.accountId); if(oldAcc) oldAcc.balance += (old.type==='expense'?old.amount:-old.amount);
-                        const newAcc = temp.find(a=>a.id==Number(f.accountId)); if(newAcc) newAcc.balance += (f.type==='expense'?-amt:amt);
-                        return temp;
-                    });
-                    setTransactions(p=>p.map(t=>t.id===editingTxData.id?{...t,...f,amount:amt,accountId:Number(f.accountId)}:t));
-                } else {
-                    setTransactions(p=>[{id:Date.now(),...f,amount:amt,accountId:Number(f.accountId)},...p]);
-                    setAccounts(p=>p.map(a=>a.id==Number(f.accountId)?{...a,balance:a.balance+(f.type==='expense'?-amt:amt)}:a));
-                }
-                setIsTxModalOpen(false); setEditingTxData(null);
+            const resetData = () => {
+                triggerConfirm('確定要重置所有資料嗎？此操作將清除所有紀錄並恢復預設值，且無法復原。', () => {
+                    setAccounts(INITIAL_ACCOUNTS);
+                    setTransactions(INITIAL_TRANSACTIONS);
+                    setCategories(INITIAL_CATEGORIES);
+                    setBudgets(INITIAL_BUDGETS);
+                    setRecurring(INITIAL_RECURRING);
+                    setDashboardCycleDay(1);
+                    alert("資料已重置！");
+                });
             };
-            const deleteTx = (id) => {
-                const t = transactions.find(x=>x.id===id);
-                setAccounts(p=>p.map(a=>a.id==t.accountId?{...a,balance:a.balance+(t.type==='expense'?t.amount:-t.amount)}:a));
-                setTransactions(p=>p.filter(x=>x.id!==id));
+
+            const handleSaveTransaction = (formData) => {
+                if (!formData.amount || !formData.accountId) return;
+
+                if (editingTxId) {
+                    const oldTx = transactions.find(t => t.id === editingTxId);
+                    let tempAccounts = [...accounts];
+                    // 回滾舊餘額
+                    const revertBalance = (accId, amount, type, toAccId) => {
+                        tempAccounts = tempAccounts.map(acc => {
+                            if (acc.id === accId) {
+                                if (type === 'expense') return { ...acc, balance: acc.balance + amount };
+                                if (type === 'income') return { ...acc, balance: acc.balance - amount };
+                                if (type === 'transfer') return { ...acc, balance: acc.balance + amount };
+                            }
+                            if (type === 'transfer' && acc.id === toAccId) {
+                                return { ...acc, balance: acc.balance - amount };
+                            }
+                            return acc;
+                        });
+                    };
+                    revertBalance(oldTx.accountId, oldTx.amount, oldTx.type, oldTx.toAccountId);
+
+                    const newAmount = Number(formData.amount);
+                    const newAccId = Number(formData.accountId);
+                    const newToAccId = formData.toAccountId ? Number(formData.toAccountId) : null;
+                    
+                    // 應用新餘額
+                    tempAccounts = tempAccounts.map(acc => {
+                        if (acc.id === newAccId) {
+                            if (formData.type === 'expense') return { ...acc, balance: acc.balance - newAmount };
+                            if (formData.type === 'income') return { ...acc, balance: acc.balance + newAmount };
+                            if (formData.type === 'transfer') return { ...acc, balance: acc.balance - newAmount };
+                        }
+                        if (formData.type === 'transfer' && acc.id === newToAccId) {
+                            return { ...acc, balance: acc.balance + newAmount };
+                        }
+                        return acc;
+                    });
+
+                    setAccounts(tempAccounts);
+                    setTransactions(prev => prev.map(t => t.id === editingTxId ? { 
+                        ...t, ...formData, amount: newAmount, accountId: newAccId, toAccountId: newToAccId, budgetId: formData.budgetId ? Number(formData.budgetId) : null 
+                    } : t));
+                } else {
+                    const newAmount = Number(formData.amount);
+                    let newTransactions = [];
+                    // 處理分期付款
+                    if (formData.type === 'expense' && formData.isInstallment && formData.installmentMonths > 1) {
+                        const count = Number(formData.installmentMonths);
+                        const baseAmount = Math.floor(newAmount / count);
+                        const remainder = newAmount % count;
+                        const startDate = new Date(formData.date);
+                        for (let i = 0; i < count; i++) {
+                            const amount = i === 0 ? baseAmount + remainder : baseAmount;
+                            const date = new Date(startDate);
+                            date.setMonth(date.getMonth() + i);
+                            newTransactions.push({
+                                id: Date.now() + Math.random(),
+                                type: 'expense',
+                                date: formatDate(date),
+                                amount: amount,
+                                category: formData.category,
+                                accountId: Number(formData.accountId),
+                                note: `${formData.note} (分期 ${i + 1}/${count})`,
+                                isInstallmentItem: true,
+                                reconciled: false,
+                                budgetId: formData.budgetId ? Number(formData.budgetId) : null
+                            });
+                        }
+                    } else {
+                        newTransactions.push({
+                            id: Date.now(),
+                            ...formData,
+                            amount: newAmount,
+                            accountId: Number(formData.accountId),
+                            toAccountId: formData.toAccountId ? Number(formData.toAccountId) : undefined,
+                            budgetId: formData.budgetId ? Number(formData.budgetId) : null
+                        });
+                    }
+                    setTransactions([...newTransactions, ...transactions]);
+
+                    // 更新餘額 (只針對日期在今天及之前的交易，但這裡簡化為直接更新，因為記帳通常是當下)
+                    setAccounts(prev => prev.map(acc => {
+                        let balanceChange = 0;
+                        newTransactions.forEach(t => {
+                            if (t.type === 'expense' && acc.id === t.accountId) balanceChange -= t.amount;
+                            if (t.type === 'income' && acc.id === t.accountId) balanceChange += t.amount;
+                            if (t.type === 'transfer') {
+                                if (acc.id === t.accountId) balanceChange -= t.amount;
+                                if (acc.id === t.toAccountId) balanceChange += t.amount;
+                            }
+                        });
+                        return { ...acc, balance: acc.balance + balanceChange };
+                    }));
+                }
                 setIsTxModalOpen(false);
+                setEditingTxId(null);
+                setEditingTxData(null);
+            };
+
+            const handleDeleteTransaction = (id) => {
+                triggerConfirm('確定要刪除此筆交易嗎？\n刪除後，該筆金額將自動回滾至對應帳戶。', () => {
+                    const txToDelete = transactions.find(t => t.id === id);
+                    if (!txToDelete) return;
+
+                    setAccounts(prev => prev.map(acc => {
+                        if (acc.id === txToDelete.accountId) {
+                            if (txToDelete.type === 'expense') return { ...acc, balance: acc.balance + txToDelete.amount };
+                            if (txToDelete.type === 'income') return { ...acc, balance: acc.balance - txToDelete.amount };
+                            if (txToDelete.type === 'transfer') return { ...acc, balance: acc.balance + txToDelete.amount };
+                        }
+                        if (txToDelete.type === 'transfer' && acc.id === txToDelete.toAccountId) {
+                            return { ...acc, balance: acc.balance - txToDelete.amount };
+                        }
+                        return acc;
+                    }));
+                    setTransactions(prev => prev.filter(t => t.id !== id));
+                    setIsTxModalOpen(false);
+                });
+            };
+
+            const handleOpenEditTx = (tx) => {
+                setEditingTxId(tx ? tx.id : null);
+                setEditingTxData(tx);
+                setIsTxModalOpen(true);
+            };
+
+            const handleSaveAccount = (data) => {
+                if(editingAccount) setAccounts(prev => prev.map(a => a.id === editingAccount.id ? {...a, ...data} : a));
+                else setAccounts([...accounts, {...data, id: Date.now(), balance: Number(data.balance)}]);
+                setIsAccountModalOpen(false);
+            };
+            const handleDeleteAccount = (id) => triggerConfirm('刪除帳戶?', () => setAccounts(prev => prev.filter(a => a.id !== id)));
+
+            const handleSaveBudget = (data) => {
+                if(editingBudget) setBudgets(prev => prev.map(b => b.id === editingBudget.id ? {...b, ...data} : b));
+                else setBudgets([...budgets, {...data, id: Date.now()}]);
+                setIsBudgetModalOpen(false);
+            };
+            const handleDeleteBudget = (id) => triggerConfirm('刪除預算?', () => setBudgets(prev => prev.filter(b => b.id !== id)));
+
+            const handleSaveRecurring = (data) => {
+                if(editingRecurring) setRecurring(prev => prev.map(r => r.id === editingRecurring.id ? {...r, ...data} : r));
+                else setRecurring([...recurring, {...data, id: Date.now()}]);
+                setIsRecurringModalOpen(false);
+            };
+            const handleDeleteRecurring = (id) => triggerConfirm('刪除此設定?', () => setRecurring(prev => prev.filter(r => r.id !== id)));
+
+            const toggleReconcile = (e, txId) => {
+                e.stopPropagation();
+                setTransactions(prev => prev.map(t => t.id === txId ? { ...t, reconciled: !t.reconciled } : t));
             };
 
             return (
-                <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans pb-20 md:pb-0">
-                    <ConfirmModal isOpen={confirmModal.isOpen} message={confirmModal.message} onConfirm={confirmModal.onConfirm} onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })} />
-                    <TransactionModal isOpen={isTxModalOpen} onClose={() => setIsTxModalOpen(false)} onSave={saveTx} onDelete={deleteTx} accounts={accounts} categories={categories} budgets={budgets} initialData={editingTxData} />
-                    <AccountModal isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} onSave={(d) => { if(d.id) setAccounts(p=>p.map(a=>a.id===d.id?d:a)); else setAccounts(p=>[...p,{...d,id:Date.now()}]); setIsAccountModalOpen(false); }} initialData={editingAccount} />
-                    <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} onSave={(d) => { if(d.id) setBudgets(p=>p.map(b=>b.id===d.id?d:b)); else setBudgets(p=>[...p,{...d,id:Date.now()}]); setIsBudgetModalOpen(false); }} initialData={editingBudget} />
-                    <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} onSave={(d) => { if(d.id) setRecurring(p=>p.map(r=>r.id===d.id?d:r)); else setRecurring(p=>[...p,{...d,id:Date.now()}]); setIsRecurringModalOpen(false); }} initialData={editingRecurring} accounts={accounts} categories={categories} budgets={budgets} />
+                <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
+                <ConfirmModal 
+                    isOpen={confirmModal.isOpen} 
+                    message={confirmModal.message} 
+                    onConfirm={confirmModal.onConfirm} 
+                    onClose={() => setConfirmModal({ isOpen: false, message: '', onConfirm: null })} 
+                />
 
-                    {/* Sidebar */}
-                    <aside className="w-full md:w-64 bg-white border-r p-6 hidden md:flex flex-col justify-between">
-                        <div>
-                            <h1 className="text-xl font-bold mb-8 flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded text-white flex items-center justify-center">$</div>MyMoney</h1>
-                            <nav className="space-y-2">
-                                {[{id:'dashboard',icon:Icons.LayoutDashboard,l:'儀表板'},{id:'accounts',icon:Icons.Wallet,l:'帳戶'},{id:'transactions',icon:Icons.ArrowRightLeft,l:'交易'},{id:'reconcile',icon:Icons.CheckCircle,l:'對帳'},{id:'budget',icon:Icons.PieChart,l:'預算'},{id:'recurring',icon:Icons.Repeat,l:'定期扣款'},{id:'categories',icon:Icons.Tag,l:'分類'}].map(i=><NavItem key={i.id} id={i.id} label={i.l} icon={i.icon} activeTab={activeTab} setActiveTab={setActiveTab}/>)}
-                            </nav>
-                        </div>
-                        <div className="border-t pt-4">
-                            {!gasUrl ? <div className="mb-2"><input placeholder="API URL" value={gasUrl} onChange={e=>setGasUrl(e.target.value)} className="w-full border p-1 text-xs rounded"/></div> : <div className="text-xs text-green-600 mb-2 flex justify-between">✅ 已連結 <button onClick={()=>setGasUrl('')} className="text-gray-400">✎</button></div>}
-                            <div className="grid grid-cols-2 gap-2">
-                                <button onClick={syncUpload} disabled={loading} className="bg-blue-50 text-blue-600 p-2 rounded text-xs">{loading?'...':'上傳'}</button>
-                                <button onClick={syncDownload} disabled={loading} className="bg-green-50 text-green-600 p-2 rounded text-xs">{loading?'...':'下載'}</button>
-                            </div>
-                            <button onClick={()=>setConfirmModal({isOpen:true, message:'重置?', onConfirm:()=>{setAccounts(INITIAL_ACCOUNTS); setTransactions([]); setRecurring([]);}})} className="mt-2 text-xs text-gray-400 w-full text-left">重置資料</button>
-                        </div>
-                    </aside>
-
-                    {/* Mobile Header */}
-                    <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
-                        <h1 className="font-bold flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 rounded text-white flex items-center justify-center text-xs">$</div>MyMoney</h1>
-                        <div className="flex gap-3">
-                            <button onClick={()=>!gasUrl?setGasUrl(prompt('API URL')):null} className={gasUrl?'text-green-500':'text-gray-400'}><SafeIcon icon={Icons.Cloud}/></button>
-                            <button onClick={syncUpload} className="text-blue-500"><SafeIcon icon={Icons.UploadCloud}/></button>
-                            <button onClick={syncDownload} className="text-green-500"><SafeIcon icon={Icons.DownloadCloud}/></button>
-                            <button onClick={()=>{setEditingTxData(null);setIsTxModalOpen(true)}}><SafeIcon icon={Icons.Plus}/></button>
-                        </div>
+                <TransactionModal 
+                    isOpen={isTxModalOpen} 
+                    onClose={() => setIsTxModalOpen(false)} 
+                    onSave={handleSaveTransaction}
+                    onDelete={handleDeleteTransaction}
+                    accounts={accounts}
+                    categories={categories}
+                    budgets={budgets}
+                    initialData={editingTxData}
+                />
+                <AccountModal isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} onSave={handleSaveAccount} initialData={editingAccount} />
+                <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} onSave={handleSaveBudget} initialData={editingBudget} />
+                <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} onSave={handleSaveRecurring} initialData={editingRecurring} accounts={accounts} categories={categories} budgets={budgets} />
+                
+                <aside className="w-full md:w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-8 px-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xl">$</span></div><h1 className="text-xl font-bold text-gray-800">MyMoney</h1></div>
+                        <nav className="space-y-2 flex-1">
+                        <NavItem id="dashboard" label="儀表板" icon={Icons.LayoutDashboard} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="accounts" label="帳戶管理" icon={Icons.Wallet} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="transactions" label="交易記錄" icon={Icons.ArrowRightLeft} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="reconcile" label="對帳中心" icon={Icons.CheckCircle} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="budget" label="預算與提醒" icon={Icons.PieChart} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <NavItem id="categories" label="分類管理" icon={Icons.Tag} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        </nav>
                     </div>
+                    <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 mt-4 border-t pt-4">
+                        <SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /> 重置資料
+                    </button>
+                </aside>
 
-                    <main className="flex-1 p-4 overflow-y-auto">
-                        <div className="max-w-5xl mx-auto">
-                            {activeTab==='dashboard' && <DashboardView accounts={accounts} transactions={transactions} budgets={budgets} recurring={recurring} onOpenEditTx={(t)=>{setEditingTxData(t);setIsTxModalOpen(true)}} dashboardCycleDay={cycleDay} setDashboardCycleDay={setCycleDay} setTxFilter={setFilter} setActiveTab={setActiveTab}/>}
-                            {activeTab==='accounts' && <AccountsView accounts={accounts} transactions={transactions} onOpenEditTx={(t)=>{setEditingTxData(t);setIsTxModalOpen(true)}} onDeleteTx={deleteTx} onEditAccount={(a)=>{setEditingAccount(a);setIsAccountModalOpen(true)}} onDeleteAccount={id=>setAccounts(p=>p.filter(a=>a.id!==id))} setAccountViewCycleIndex={setAccountViewCycleIndex} setSelectedAccountDetailId={setSelectedAccountDetailId} selectedAccountDetailId={selectedAccountDetailId} accountViewCycleIndex={accountViewCycleIndex}/>}
-                            {activeTab==='transactions' && <TransactionsView transactions={transactions} accounts={accounts} categories={categories} budgets={budgets} onOpenEdit={(t)=>{setEditingTxData(t);setIsTxModalOpen(true)}} onOpenAdd={()=>{setEditingTxData(null);setIsTxModalOpen(true)}} onDelete={deleteTx} filter={filter} setFilter={setFilter}/>}
-                            {activeTab==='reconcile' && <ReconciliationView accounts={accounts} transactions={transactions} onToggleReconcile={(e,id)=>setTransactions(p=>p.map(t=>t.id===id?{...t,reconciled:!t.reconciled}:t))}/>}
-                            {activeTab==='budget' && <BudgetsView budgets={budgets} transactions={transactions} recurring={recurring} onOpenEditTx={(t)=>{setEditingTxData(t);setIsTxModalOpen(true)}} onEditBudget={(b)=>{setEditingBudget(b);setIsBudgetModalOpen(true)}} onDeleteBudget={id=>setBudgets(p=>p.filter(b=>b.id!==id))} selectedBudgetDetailId={selectedBudgetDetailId} setSelectedBudgetDetailId={setSelectedBudgetDetailId}/>}
-                            {activeTab==='recurring' && <RecurringView recurring={recurring} accounts={accounts} onEdit={(r)=>{setEditingRecurring(r);setIsRecurringModalOpen(true)}} onDelete={id=>setRecurring(p=>p.filter(r=>r.id!==id))} onAdd={()=>{setEditingRecurring(null);setIsRecurringModalOpen(true)}}/>}
-                            {activeTab==='categories' && <CategoryManager categories={categories} onUpdate={setCategories}/>}
-                        </div>
-                    </main>
-
-                    {/* Mobile Nav */}
-                    <div className="md:hidden fixed bottom-0 w-full bg-white border-t flex justify-between px-4 py-2 text-xs text-gray-500 overflow-x-auto">
-                        {[{id:'dashboard',icon:Icons.LayoutDashboard,l:'儀表板'},{id:'accounts',icon:Icons.Wallet,l:'帳戶'},{id:'transactions',icon:Icons.ArrowRightLeft,l:'交易'},{id:'recurring',icon:Icons.Repeat,l:'定期'},{id:'categories',icon:Icons.Tag,l:'分類'}].map(i=>(
-                            <button key={i.id} onClick={()=>setActiveTab(i.id)} className={`flex flex-col items-center min-w-[50px] ${activeTab===i.id?'text-blue-600':''}`}><SafeIcon icon={i.icon} className="w-6 h-6 mb-1"/>{i.l}</button>
-                        ))}
+                <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
+                    <div className="flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">$</span></div><h1 className="text-lg font-bold text-gray-800">MyMoney</h1></div>
+                    <div className="flex gap-2">
+                        <button onClick={resetData} className="text-gray-400 hover:text-red-500"><SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /></button>
+                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
                     </div>
+                </div>
+
+                <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-60px)] md:h-screen pb-24 md:pb-8">
+                    <div className="max-w-5xl mx-auto">
+                    {activeTab === 'dashboard' && <DashboardView accounts={accounts} transactions={transactions} budgets={budgets} onOpenEditTx={handleOpenEditTx} dashboardCycleDay={dashboardCycleDay} setDashboardCycleDay={setDashboardCycleDay} setTxFilter={setTxFilter} setActiveTab={setActiveTab} />}
+                    {activeTab === 'accounts' && <AccountsView accounts={accounts} transactions={transactions} onOpenEditTx={handleOpenEditTx} onDeleteTx={handleDeleteTransaction} onEditAccount={(acc) => { setEditingAccount(acc); setIsAccountModalOpen(true); }} onDeleteAccount={handleDeleteAccount} setAccountViewCycleIndex={setAccountViewCycleIndex} setSelectedAccountDetailId={setSelectedAccountDetailId} selectedAccountDetailId={selectedAccountDetailId} accountViewCycleIndex={accountViewCycleIndex} />}
+                    {activeTab === 'transactions' && <TransactionsView transactions={transactions} accounts={accounts} categories={categories} budgets={budgets} onOpenEdit={handleOpenEditTx} onOpenAdd={() => handleOpenEditTx(null)} onDelete={handleDeleteTransaction} filter={txFilter} setFilter={setTxFilter} />}
+                    {activeTab === 'reconcile' && <ReconciliationView accounts={accounts} transactions={transactions} onToggleReconcile={toggleReconcile} onOpenEdit={handleOpenEditTx} />}
+                    {activeTab === 'budget' && <BudgetsView budgets={budgets} transactions={transactions} recurring={recurring} onOpenEditTx={handleOpenEditTx} onEditBudget={(b) => { setEditingBudget(b); setIsBudgetModalOpen(true); }} onDeleteBudget={handleDeleteBudget} selectedBudgetDetailId={selectedBudgetDetailId} setSelectedBudgetDetailId={setSelectedBudgetDetailId} />}
+                    {activeTab === 'categories' && <CategoryManager categories={categories} onUpdate={setCategories} />}
+                    </div>
+                </main>
+
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 flex justify-between z-20">
+                    <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center p-2 ${activeTab === 'dashboard' ? 'text-blue-600' : 'text-gray-400'}`}><SafeIcon icon={Icons.LayoutDashboard} fallback="" className="w-6 h-6" /><span className="text-[10px] mt-1">儀表板</span></button>
+                    <button onClick={() => setActiveTab('accounts')} className={`flex flex-col items-center p-2 ${activeTab === 'accounts' ? 'text-blue-600' : 'text-gray-400'}`}><SafeIcon icon={Icons.Wallet} fallback="" className="w-6 h-6" /><span className="text-[10px] mt-1">帳戶</span></button>
+                    <div className="relative -top-5"><button onClick={() => handleOpenEditTx(null)} className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"><SafeIcon icon={Icons.Plus} fallback="+" className="w-6 h-6" /></button></div>
+                    <button onClick={() => setActiveTab('budget')} className={`flex flex-col items-center p-2 ${activeTab === 'budget' ? 'text-blue-600' : 'text-gray-400'}`}><SafeIcon icon={Icons.PieChart} fallback="" className="w-6 h-6" /><span className="text-[10px] mt-1">預算</span></button>
+                    <button onClick={() => setActiveTab('categories')} className={`flex flex-col items-center p-2 ${activeTab === 'categories' ? 'text-blue-600' : 'text-gray-400'}`}><SafeIcon icon={Icons.Tag} fallback="" className="w-6 h-6" /><span className="text-[10px] mt-1">分類</span></button>
+                </div>
                 </div>
             );
         }
@@ -652,4 +1108,4 @@
         root.render(<FinanceManager />);
     </script>
 </body>
-</html>
+</html> 
