@@ -651,7 +651,6 @@
                 const actualTx = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && t.date >= start && t.date <= end);
                 const spent = actualTx.reduce((sum, t) => sum + t.amount, 0);
 
-                // 簡單預估：這裡顯示純交易，詳細預估在 BudgetView 處理
                 let recurringForecast = 0; 
                 return { ...b, spent, recurringForecast, totalEstimated: spent + recurringForecast, cycleStart: start, cycleEnd: end };
                 });
@@ -1068,13 +1067,16 @@
         function FinanceManager() {
             const [activeTab, setActiveTab] = useState('dashboard');
             
-            // --- 使用 useLocalStorage 來取代 useState，實現資料持久化 ---
             const [accounts, setAccounts] = useLocalStorage('mymoney_accounts', INITIAL_ACCOUNTS);
             const [transactions, setTransactions] = useLocalStorage('mymoney_transactions', INITIAL_TRANSACTIONS);
             const [categories, setCategories] = useLocalStorage('mymoney_categories', INITIAL_CATEGORIES);
             const [budgets, setBudgets] = useLocalStorage('mymoney_budgets', INITIAL_BUDGETS);
             const [recurring, setRecurring] = useLocalStorage('mymoney_recurring', INITIAL_RECURRING);
             const [dashboardCycleDay, setDashboardCycleDay] = useLocalStorage('mymoney_cycle_day', 1);
+            
+            // 新增：儲存 GAS Web App URL
+            const [googleScriptUrl, setGoogleScriptUrl] = useLocalStorage('mymoney_gas_url', '');
+            const [isCloudLoading, setIsCloudLoading] = useState(false);
 
             const [txFilter, setTxFilter] = useState({ accountId: 'all', category: 'all', startDate: '', endDate: '', minAmount: '', type: 'all' });
             const [confirmModal, setConfirmModal] = useState({ isOpen: false, message: '', onConfirm: null });
@@ -1096,30 +1098,23 @@
             const [selectedBudgetDetailId, setSelectedBudgetDetailId] = useState(null);
             const [accountViewCycleIndex, setAccountViewCycleIndex] = useState(0);
 
-            // --- 核心修復：自動執行週期性帳務的邏輯 ---
+            // --- 自動執行週期性帳務 (保持不變) ---
             useEffect(() => {
                 const today = new Date();
                 const currentYear = today.getFullYear();
-                const currentMonth = today.getMonth(); // 0-11
+                const currentMonth = today.getMonth(); 
                 
                 let newTxs = [];
-                let accountsUpdateMap = {}; // id -> balance change
+                let accountsUpdateMap = {}; 
 
                 recurring.forEach(r => {
                     if (!r.isActive) return;
-
-                    // 建構本月的執行日期
                     let targetDay = r.day;
                     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
                     if (targetDay > daysInMonth) targetDay = daysInMonth;
-
                     const targetDateObj = new Date(currentYear, currentMonth, targetDay);
                     const targetDateStr = formatDate(targetDateObj);
-
-                    // 如果執行日還沒到，跳過
                     if (targetDateObj > today) return;
-
-                    // 檢查是否已經生成過 (檢查當天是否有同金額、同分類、同備註的交易)
                     const autoNote = `${r.name} (自動入帳)`;
                     const exists = transactions.some(t => 
                         t.date === targetDateStr && 
@@ -1127,7 +1122,6 @@
                         t.category === r.category &&
                         (t.note === autoNote || t.note === r.name)
                     );
-
                     if (!exists) {
                         const newTx = {
                             id: Date.now() + Math.random(),
@@ -1142,10 +1136,8 @@
                             isRecurringAuto: true
                         };
                         newTxs.push(newTx);
-
                         const amount = Number(r.amount);
                         if (!accountsUpdateMap[r.accountId]) accountsUpdateMap[r.accountId] = 0;
-                        
                         if (r.type === 'expense') accountsUpdateMap[r.accountId] -= amount;
                         else if (r.type === 'income') accountsUpdateMap[r.accountId] += amount;
                     }
@@ -1160,9 +1152,65 @@
                         return acc;
                     }));
                 }
-
             }, [recurring, transactions, setTransactions, setAccounts]); 
 
+            // --- Cloud Sync Functions ---
+            // 下載同步
+            const handleCloudDownload = async () => {
+                if (!googleScriptUrl) return alert("請先輸入 Google Apps Script URL");
+                setIsCloudLoading(true);
+                try {
+                    const res = await fetch(googleScriptUrl);
+                    const data = await res.json();
+                    
+                    triggerConfirm(`雲端資料下載成功！\n確定要覆蓋本機資料嗎？`, () => {
+                        if (data.mymoney_accounts) setAccounts(JSON.parse(data.mymoney_accounts));
+                        if (data.mymoney_transactions) setTransactions(JSON.parse(data.mymoney_transactions));
+                        if (data.mymoney_categories) setCategories(JSON.parse(data.mymoney_categories));
+                        if (data.mymoney_budgets) setBudgets(JSON.parse(data.mymoney_budgets));
+                        if (data.mymoney_recurring) setRecurring(JSON.parse(data.mymoney_recurring));
+                        if (data.mymoney_cycle_day) setDashboardCycleDay(Number(data.mymoney_cycle_day));
+                        alert("資料覆蓋完成！");
+                    });
+                } catch (e) {
+                    alert("下載失敗：" + e.message);
+                } finally {
+                    setIsCloudLoading(false);
+                }
+            };
+
+            // 上傳同步 (分批上傳)
+            const handleCloudUpload = async () => {
+                if (!googleScriptUrl) return alert("請先輸入 Google Apps Script URL");
+                setIsCloudLoading(true);
+                try {
+                    // 定義上傳順序：帳戶與預算優先 (因為交易需要這些 ID 參照)，交易最後 (因為交易會觸發報表更新)
+                    const tasks = [
+                        { key: 'mymoney_accounts', value: JSON.stringify(accounts) },
+                        { key: 'mymoney_categories', value: JSON.stringify(categories) },
+                        { key: 'mymoney_budgets', value: JSON.stringify(budgets) },
+                        { key: 'mymoney_recurring', value: JSON.stringify(recurring) },
+                        { key: 'mymoney_cycle_day', value: dashboardCycleDay.toString() },
+                        { key: 'mymoney_transactions', value: JSON.stringify(transactions) } // 最後上傳
+                    ];
+
+                    for (const task of tasks) {
+                        await fetch(googleScriptUrl, {
+                            method: 'POST',
+                            mode: 'no-cors', // GAS doPost 跨域通常需要 no-cors
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(task)
+                        });
+                        // 簡單延遲確保順序
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                    alert("所有資料已上傳至雲端！");
+                } catch (e) {
+                    alert("上傳失敗：" + e.message);
+                } finally {
+                    setIsCloudLoading(false);
+                }
+            };
 
             // --- Handlers ---
             const triggerConfirm = (message, action) => {
@@ -1374,16 +1422,40 @@
                         <NavItem id="categories" label="分類管理" icon={Icons.Tag} activeTab={activeTab} setActiveTab={setActiveTab} />
                         </nav>
                    </div>
-                   <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 mt-4 border-t pt-4">
-                        <SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /> 重置資料
-                   </button>
+                   
+                   <div className="border-t pt-4 space-y-3">
+                        <div className="px-2">
+                            <label className="text-xs font-medium text-gray-500 mb-1 block flex items-center gap-1"><SafeIcon icon={Icons.Cloud} className="w-3 h-3"/> Google Apps Script URL</label>
+                            <input value={googleScriptUrl} onChange={(e) => setGoogleScriptUrl(e.target.value)} placeholder="https://script.google.com/..." className="w-full p-2 text-xs border rounded bg-gray-50" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 px-2">
+                            <button onClick={handleCloudUpload} disabled={isCloudLoading} className="flex flex-col items-center justify-center p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors disabled:opacity-50">
+                                <SafeIcon icon={Icons.UploadCloud} className="w-5 h-5 mb-1" /> 
+                                <span className="text-xs">{isCloudLoading ? '上傳中' : '上傳雲端'}</span>
+                            </button>
+                            <button onClick={handleCloudDownload} disabled={isCloudLoading} className="flex flex-col items-center justify-center p-2 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors disabled:opacity-50">
+                                <SafeIcon icon={Icons.DownloadCloud} className="w-5 h-5 mb-1" /> 
+                                <span className="text-xs">{isCloudLoading ? '下載中' : '下載同步'}</span>
+                            </button>
+                        </div>
+                        <button onClick={resetData} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500 transition-colors px-4 py-2 w-full text-left mt-2">
+                            <SafeIcon icon={Icons.Trash2} className="w-4 h-4" /> 重置所有資料
+                        </button>
+                   </div>
                 </aside>
 
                 <div className="md:hidden bg-white p-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
                     <div className="flex items-center gap-2"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">$</span></div><h1 className="text-lg font-bold text-gray-800">MyMoney</h1></div>
-                    <div className="flex gap-2">
-                        <button onClick={resetData} className="text-gray-400 hover:text-red-500"><SafeIcon icon={Icons.RefreshCw} className="w-4 h-4" /></button>
-                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
+                    <div className="flex gap-2 items-center">
+                        <button onClick={() => {
+                            const url = prompt("請輸入 Google Apps Script URL:", googleScriptUrl);
+                            if(url !== null) setGoogleScriptUrl(url);
+                        }} className="text-gray-400 hover:text-blue-500" title="設定雲端"><SafeIcon icon={Icons.Cloud} className="w-5 h-5" /></button>
+                        
+                        <button onClick={handleCloudUpload} disabled={isCloudLoading} className="text-blue-500 hover:text-blue-700" title="上傳"><SafeIcon icon={Icons.UploadCloud} className="w-5 h-5" /></button>
+                        <button onClick={handleCloudDownload} disabled={isCloudLoading} className="text-green-500 hover:text-green-700" title="下載"><SafeIcon icon={Icons.DownloadCloud} className="w-5 h-5" /></button>
+                        
+                        <Button onClick={() => handleOpenEditTx(null)} className="!px-2 !py-1 text-sm ml-2"><SafeIcon icon={Icons.Plus} fallback="+" className="w-4 h-4"/></Button>
                     </div>
                 </div>
 
