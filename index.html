@@ -259,11 +259,9 @@
                 return balance;
             };
 
-            // Recurring Logic Update: Project transactions up to NEXT month
             useEffect(() => {
                 const checkRecurring = () => {
                     const now = new Date();
-                    // Limit is end of NEXT month to show future tx
                     const limitDate = new Date(now.getFullYear(), now.getMonth() + 2, 0); 
                     
                     let newTx = [];
@@ -271,13 +269,13 @@
 
                     const updatedRecurring = recurring.map(rule => {
                         const isActive = rule.isActive !== undefined ? rule.isActive : rule.active;
-                        if (!isActive) return rule; // If terminated, do nothing
+                        if (!isActive) return rule; 
 
                         let currentRule = { ...rule };
                         let lastRun = currentRule.lastRunDate ? new Date(currentRule.lastRunDate) : null;
                         
                         let iterations = 0;
-                        while(iterations < 24) { // Safety break
+                        while(iterations < 24) { 
                             iterations++;
                             
                             let nextDate;
@@ -314,6 +312,8 @@
                                 type: currentRule.type,
                                 accountId: currentRule.accountId,
                                 category: currentRule.category,
+                                budgetId: currentRule.budgetId, 
+                                recurringRuleId: currentRule.id, // Link to rule
                                 note: (currentRule.note || currentRule.name) + ' (定期)',
                                 isRecurring: true,
                                 reconciled: false
@@ -334,7 +334,7 @@
                 };
                 
                 checkRecurring();
-            }, [recurring.length, recurring.map(r => r.active).join(',')]); // Depend on structure changes
+            }, [recurring.length, recurring.map(r => r.active).join(',')]); 
 
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
@@ -415,8 +415,9 @@
                     }
                     
                     if (txData.setRecurring) {
+                        const newRuleId = generateId();
                         setRecurring(prev => [...prev, {
-                            id: generateId(),
+                            id: newRuleId,
                             name: txData.category + ' (定期)',
                             day: new Date(txData.date).getDate(),
                             amount: txData.amount,
@@ -426,8 +427,12 @@
                             note: txData.note,
                             isActive: true,
                             startDate: txData.date,
-                            frequency: '每月'
+                            frequency: '每月',
+                            budgetId: txData.budgetId 
                         }]);
+                        // Update the transaction just created to link to this new rule (optional, but good for consistency)
+                        setTransactions(prev => prev.map(t => t.id === txData.id ? {...t, recurringRuleId: newRuleId} : t));
+                        
                         showAlert('成功', '已新增至定期扣款管理');
                     }
                 }
@@ -629,6 +634,122 @@
                 );
             };
 
+            const RecurringView = () => {
+                const [editRule, setEditRule] = useState(null);
+                
+                const handleRuleClick = (r) => {
+                    setEditRule({ ...r, active: r.isActive !== undefined ? r.isActive : r.active });
+                };
+
+                const handleSaveRule = () => {
+                    if (!editRule) return;
+                    
+                    // 1. Update Rule Registry
+                    setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
+                        ...editRule, 
+                        amount: Number(editRule.amount),
+                        isActive: editRule.active 
+                    } : r));
+
+                    // 2. Update existing future/unreconciled transactions linked to this rule
+                    setTransactions(prev => prev.map(t => {
+                        // Check linkage: either by explicit ID (future proof) or fuzzy match (legacy)
+                        const originalRule = recurring.find(r => r.id === editRule.id);
+                        const isLinked = t.recurringRuleId === editRule.id || 
+                                         (t.isRecurring && originalRule && t.note === (originalRule.note || originalRule.name) + ' (定期)');
+                        
+                        // Only update if linked and likely a future/auto-generated item (not manually reconciled)
+                        if (isLinked && !t.reconciled) {
+                            return {
+                                ...t,
+                                amount: Number(editRule.amount),
+                                accountId: editRule.accountId,
+                                category: editRule.category,
+                                budgetId: editRule.budgetId, // Update the budget!
+                                note: (editRule.note || editRule.name) + ' (定期)' // Update note
+                            };
+                        }
+                        return t;
+                    }));
+
+                    setEditRule(null);
+                };
+
+                const handleDeleteRule = () => {
+                    if (!editRule) return;
+                    showConfirm('刪除定期扣款', '確定要刪除此設定嗎？', () => {
+                        setRecurring(prev => prev.filter(r => r.id !== editRule.id));
+                        setEditRule(null);
+                    });
+                };
+
+                return (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <button onClick={() => setView('menu')}><Icon name="arrow_back" /></button>
+                            <h2 className="text-xl font-bold">定期扣款管理</h2>
+                        </div>
+                        {recurring.map(r => {
+                            const isActive = r.isActive !== undefined ? r.isActive : r.active;
+                            return (
+                                <div key={r.id} onClick={() => handleRuleClick(r)} className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center active:bg-gray-50 cursor-pointer">
+                                    <div>
+                                        <h4 className="font-bold">{r.note || r.name}</h4>
+                                        <p className="text-sm text-gray-500">每月 {r.day} 號 • {formatMoney(r.amount)}</p>
+                                    </div>
+                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${isActive ? 'bg-green-100 text-success' : 'bg-gray-200 text-gray-500'}`}>
+                                        {isActive ? '執行中' : '已終止'}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                        {recurring.length === 0 && (
+                            <div className="text-center py-10 text-gray-400">
+                                尚無定期扣款設定<br/>請在新增交易時勾選「設為定期」
+                            </div>
+                        )}
+
+                        <Modal isOpen={!!editRule} onClose={() => setEditRule(null)} title="編輯定期扣款">
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">名稱/備註</label>
+                                    <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.note || editRule?.name || ''} onChange={e => setEditRule({...editRule, note: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
+                                    <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.amount || ''} onChange={e => setEditRule({...editRule, amount: e.target.value})} />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">預算 (選填)</label>
+                                    <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.budgetId || ''} onChange={e => setEditRule({...editRule, budgetId: e.target.value})}>
+                                        <option value="">不列入預算</option>
+                                        {budgets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">扣款日 (每月)</label>
+                                        <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.day || 1} onChange={e => setEditRule({...editRule, day: parseInt(e.target.value)})}>
+                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">週期狀態</label>
+                                        <button onClick={() => setEditRule({...editRule, active: !editRule.active})} className={`w-full p-3 rounded-lg font-bold text-sm ${editRule?.active ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'}`}>
+                                            {editRule?.active ? '終止扣款' : '恢復扣款'}
+                                        </button>
+                                    </div>
+                                </div>
+                                <button onClick={handleSaveRule} className="w-full py-3 bg-primary text-white font-bold rounded-lg mt-4">儲存變更</button>
+                                <button onClick={handleDeleteRule} className="w-full py-3 text-danger font-bold rounded-lg mt-2">刪除設定</button>
+                            </div>
+                        </Modal>
+                    </div>
+                );
+            };
+
             const AccountsView = () => {
                 const [isModalOpen, setIsModalOpen] = useState(false);
                 const [editAcc, setEditAcc] = useState(null);
@@ -688,8 +809,21 @@
                                                                 <p className="text-xs text-muted mb-4">額度 {formatMoney(acc.creditLimit)}</p>
                                                             )}
                                                             <div className="flex gap-2 mt-auto">
-                                                                <button onClick={(e) => { e.stopPropagation(); setEditAcc(acc); setIsModalOpen(true); }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg hover:bg-gray-50 transition-colors md:hidden">編輯</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); setSubViewData(acc.id); setDetailViewDate(new Date()); setView('accountDetail'); }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors hidden md:block">查看明細</button>
+                                                                <button onClick={(e) => { e.stopPropagation(); setSubViewData(acc.id); setDetailViewDate(new Date()); setView('accountDetail'); }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
+                                                                {acc.type === 'credit' && (
+                                                                    <button onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setEditingTx({ 
+                                                                            type: 'transfer', 
+                                                                            toAccountId: acc.id, 
+                                                                            date: formatDate(new Date()), 
+                                                                            amount: '', 
+                                                                            accountId: accounts.find(a => a.type !== 'credit')?.id || '', 
+                                                                            note: '信用卡繳款' 
+                                                                        }); 
+                                                                        setTxModalOpen(true); 
+                                                                    }} className="flex-1 py-2 text-sm font-bold border border-primary text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -838,89 +972,6 @@
                                 {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-2">尚未設定預算</p>}
                             </div>
                         </section>
-                    </div>
-                );
-            };
-
-            const RecurringView = () => {
-                const [editRule, setEditRule] = useState(null);
-                
-                const handleRuleClick = (r) => {
-                    setEditRule({ ...r, active: r.isActive !== undefined ? r.isActive : r.active });
-                };
-
-                const handleSaveRule = () => {
-                    if (!editRule) return;
-                    setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
-                        ...editRule, 
-                        amount: Number(editRule.amount),
-                        isActive: editRule.active 
-                    } : r));
-                    setEditRule(null);
-                };
-
-                const handleDeleteRule = () => {
-                    if (!editRule) return;
-                    showConfirm('刪除定期扣款', '確定要刪除此設定嗎？', () => {
-                        setRecurring(prev => prev.filter(r => r.id !== editRule.id));
-                        setEditRule(null);
-                    });
-                };
-
-                return (
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <button onClick={() => setView('menu')}><Icon name="arrow_back" /></button>
-                            <h2 className="text-xl font-bold">定期扣款管理</h2>
-                        </div>
-                        {recurring.map(r => {
-                            const isActive = r.isActive !== undefined ? r.isActive : r.active;
-                            return (
-                                <div key={r.id} onClick={() => handleRuleClick(r)} className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center active:bg-gray-50 cursor-pointer">
-                                    <div>
-                                        <h4 className="font-bold">{r.note || r.name}</h4>
-                                        <p className="text-sm text-gray-500">每月 {r.day} 號 • {formatMoney(r.amount)}</p>
-                                    </div>
-                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${isActive ? 'bg-green-100 text-success' : 'bg-gray-200 text-gray-500'}`}>
-                                        {isActive ? '執行中' : '已終止'}
-                                    </div>
-                                </div>
-                            )
-                        })}
-                        {recurring.length === 0 && (
-                            <div className="text-center py-10 text-gray-400">
-                                尚無定期扣款設定<br/>請在新增交易時勾選「設為定期」
-                            </div>
-                        )}
-
-                        <Modal isOpen={!!editRule} onClose={() => setEditRule(null)} title="編輯定期扣款">
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">名稱/備註</label>
-                                    <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.note || editRule?.name || ''} onChange={e => setEditRule({...editRule, note: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
-                                    <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.amount || ''} onChange={e => setEditRule({...editRule, amount: e.target.value})} />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">扣款日 (每月)</label>
-                                        <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.day || 1} onChange={e => setEditRule({...editRule, day: parseInt(e.target.value)})}>
-                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">週期狀態</label>
-                                        <button onClick={() => setEditRule({...editRule, active: !editRule.active})} className={`w-full p-3 rounded-lg font-bold text-sm ${editRule?.active ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'}`}>
-                                            {editRule?.active ? '終止扣款' : '恢復扣款'}
-                                        </button>
-                                    </div>
-                                </div>
-                                <button onClick={handleSaveRule} className="w-full py-3 bg-primary text-white font-bold rounded-lg mt-4">儲存變更</button>
-                                <button onClick={handleDeleteRule} className="w-full py-3 text-danger font-bold rounded-lg mt-2">刪除設定</button>
-                            </div>
-                        </Modal>
                     </div>
                 );
             };
