@@ -88,7 +88,6 @@
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
         const formatMoney = (amount) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount);
         
-        // Fix: Use Local Time for YYYY-MM-DD to prevent timezone issues
         const formatDate = (dateInput) => {
             try {
                 if (!dateInput) return '';
@@ -103,7 +102,6 @@
             }
         };
 
-        // Helper to parse YYYY-MM-DD string to Local Date Object (00:00:00)
         const parseDate = (str) => {
             if(!str) return new Date();
             const [y, m, d] = str.split('-').map(Number);
@@ -261,44 +259,82 @@
                 return balance;
             };
 
+            // Recurring Logic Update: Project transactions up to NEXT month
             useEffect(() => {
                 const checkRecurring = () => {
-                    const today = new Date();
-                    const todayStr = formatDate(today);
-                    const dayOfMonth = today.getDate();
+                    const now = new Date();
+                    // Limit is end of NEXT month to show future tx
+                    const limitDate = new Date(now.getFullYear(), now.getMonth() + 2, 0); 
                     
                     let newTx = [];
+                    let hasUpdates = false;
+
                     const updatedRecurring = recurring.map(rule => {
                         const isActive = rule.isActive !== undefined ? rule.isActive : rule.active;
-                        if (!isActive) return rule;
+                        if (!isActive) return rule; // If terminated, do nothing
+
+                        let currentRule = { ...rule };
+                        let lastRun = currentRule.lastRunDate ? new Date(currentRule.lastRunDate) : null;
                         
-                        const lastRun = rule.lastRunDate ? new Date(rule.lastRunDate) : (rule.startDate ? new Date(rule.startDate) : null);
-                        const isRanThisMonth = lastRun && lastRun.getMonth() === today.getMonth() && lastRun.getFullYear() === today.getFullYear();
-                        
-                        if (!isRanThisMonth && dayOfMonth >= rule.day) {
+                        let iterations = 0;
+                        while(iterations < 24) { // Safety break
+                            iterations++;
+                            
+                            let nextDate;
+                            if (lastRun) {
+                                let y = lastRun.getFullYear();
+                                let m = lastRun.getMonth() + 1;
+                                const daysInMonth = new Date(y, m + 1, 0).getDate();
+                                const targetDay = Math.min(rule.day, daysInMonth);
+                                nextDate = new Date(y, m, targetDay);
+                            } else {
+                                const start = new Date(currentRule.startDate);
+                                let y = start.getFullYear();
+                                let m = start.getMonth();
+                                if (start.getDate() > rule.day) {
+                                    m++;
+                                }
+                                const daysInMonth = new Date(y, m + 1, 0).getDate();
+                                const targetDay = Math.min(rule.day, daysInMonth);
+                                nextDate = new Date(y, m, targetDay);
+                            }
+
+                            if (nextDate > limitDate) break;
+
+                            if (nextDate < new Date(currentRule.startDate)) {
+                                lastRun = nextDate; 
+                                continue; 
+                            }
+                            
+                            const dateStr = formatDate(nextDate);
                             newTx.push({
                                 id: generateId(),
-                                date: todayStr,
-                                amount: rule.amount,
-                                type: rule.type,
-                                accountId: rule.accountId,
-                                category: rule.category,
-                                note: (rule.note || rule.name) + ' (自動入帳)',
+                                date: dateStr,
+                                amount: Number(currentRule.amount),
+                                type: currentRule.type,
+                                accountId: currentRule.accountId,
+                                category: currentRule.category,
+                                note: (currentRule.note || currentRule.name) + ' (定期)',
                                 isRecurring: true,
                                 reconciled: false
                             });
-                            return { ...rule, lastRunDate: todayStr };
+                            
+                            lastRun = nextDate;
+                            currentRule.lastRunDate = dateStr;
+                            hasUpdates = true;
                         }
-                        return rule;
+                        
+                        return currentRule;
                     });
 
-                    if (newTx.length > 0) {
+                    if (newTx.length > 0 || hasUpdates) {
                         setTransactions(prev => [...newTx, ...prev]);
                         setRecurring(updatedRecurring);
                     }
                 };
+                
                 checkRecurring();
-            }, []);
+            }, [recurring.length, recurring.map(r => r.active).join(',')]); // Depend on structure changes
 
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
@@ -392,6 +428,7 @@
                             startDate: txData.date,
                             frequency: '每月'
                         }]);
+                        showAlert('成功', '已新增至定期扣款管理');
                     }
                 }
             };
@@ -428,13 +465,13 @@
             };
 
             const TransactionFormModal = ({ initialData, isOpen, onClose, onSave, onDelete }) => {
-                const [form, setForm] = useState(initialData || {});
+                const [form, setForm] = useState({ setRecurring: false, ...initialData });
                 const [calcDisplay, setCalcDisplay] = useState('0');
                 const [isCalcActive, setIsCalcActive] = useState(false);
 
                 useEffect(() => {
                     if (initialData) {
-                        setForm(initialData);
+                        setForm({ setRecurring: false, ...initialData });
                         setCalcDisplay(String(initialData.amount || ''));
                         if (!initialData.id) setIsCalcActive(false); 
                     }
@@ -788,9 +825,11 @@
                                         <div key={b.id} onClick={() => { setSubViewData(b.id); setView('budgetDetail'); }}>
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span>{b.name}</span>
-                                                <span className={used > b.limit ? 'text-danger' : 'text-gray-500'}>{Math.round(percent)}%</span>
+                                                <span className="text-xs text-gray-500 font-normal mt-0.5">
+                                                    {formatMoney(used)} / {formatMoney(b.limit)}
+                                                </span>
                                             </div>
-                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
                                                 <div className={`h-full ${used > b.limit ? 'bg-danger' : 'bg-primary'}`} style={{width: `${percent}%`}}></div>
                                             </div>
                                         </div>
@@ -799,6 +838,89 @@
                                 {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-2">尚未設定預算</p>}
                             </div>
                         </section>
+                    </div>
+                );
+            };
+
+            const RecurringView = () => {
+                const [editRule, setEditRule] = useState(null);
+                
+                const handleRuleClick = (r) => {
+                    setEditRule({ ...r, active: r.isActive !== undefined ? r.isActive : r.active });
+                };
+
+                const handleSaveRule = () => {
+                    if (!editRule) return;
+                    setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
+                        ...editRule, 
+                        amount: Number(editRule.amount),
+                        isActive: editRule.active 
+                    } : r));
+                    setEditRule(null);
+                };
+
+                const handleDeleteRule = () => {
+                    if (!editRule) return;
+                    showConfirm('刪除定期扣款', '確定要刪除此設定嗎？', () => {
+                        setRecurring(prev => prev.filter(r => r.id !== editRule.id));
+                        setEditRule(null);
+                    });
+                };
+
+                return (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <button onClick={() => setView('menu')}><Icon name="arrow_back" /></button>
+                            <h2 className="text-xl font-bold">定期扣款管理</h2>
+                        </div>
+                        {recurring.map(r => {
+                            const isActive = r.isActive !== undefined ? r.isActive : r.active;
+                            return (
+                                <div key={r.id} onClick={() => handleRuleClick(r)} className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center active:bg-gray-50 cursor-pointer">
+                                    <div>
+                                        <h4 className="font-bold">{r.note || r.name}</h4>
+                                        <p className="text-sm text-gray-500">每月 {r.day} 號 • {formatMoney(r.amount)}</p>
+                                    </div>
+                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${isActive ? 'bg-green-100 text-success' : 'bg-gray-200 text-gray-500'}`}>
+                                        {isActive ? '執行中' : '已終止'}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                        {recurring.length === 0 && (
+                            <div className="text-center py-10 text-gray-400">
+                                尚無定期扣款設定<br/>請在新增交易時勾選「設為定期」
+                            </div>
+                        )}
+
+                        <Modal isOpen={!!editRule} onClose={() => setEditRule(null)} title="編輯定期扣款">
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">名稱/備註</label>
+                                    <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.note || editRule?.name || ''} onChange={e => setEditRule({...editRule, note: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
+                                    <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.amount || ''} onChange={e => setEditRule({...editRule, amount: e.target.value})} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">扣款日 (每月)</label>
+                                        <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none" value={editRule?.day || 1} onChange={e => setEditRule({...editRule, day: parseInt(e.target.value)})}>
+                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1} 號</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">週期狀態</label>
+                                        <button onClick={() => setEditRule({...editRule, active: !editRule.active})} className={`w-full p-3 rounded-lg font-bold text-sm ${editRule?.active ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'}`}>
+                                            {editRule?.active ? '終止扣款' : '恢復扣款'}
+                                        </button>
+                                    </div>
+                                </div>
+                                <button onClick={handleSaveRule} className="w-full py-3 bg-primary text-white font-bold rounded-lg mt-4">儲存變更</button>
+                                <button onClick={handleDeleteRule} className="w-full py-3 text-danger font-bold rounded-lg mt-2">刪除設定</button>
+                            </div>
+                        </Modal>
                     </div>
                 );
             };
@@ -1003,31 +1125,7 @@
                 );
             };
 
-            const RecurringView = () => {
-                const toggleActive = (id) => setRecurring(prev => prev.map(r => r.id === id ? { ...r, isActive: !r.isActive, active: !r.active } : r));
-                return (
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 mb-4">
-                            <button onClick={() => setView('menu')}><Icon name="arrow_back" /></button>
-                            <h2 className="text-xl font-bold">定期扣款</h2>
-                        </div>
-                        {recurring.map(r => {
-                            const isActive = r.isActive !== undefined ? r.isActive : r.active;
-                            return (
-                                <div key={r.id} className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <h4 className="font-bold">{r.note || r.name}</h4>
-                                        <p className="text-sm text-gray-500">每月 {r.day} 號 • {formatMoney(r.amount)}</p>
-                                    </div>
-                                    <button onClick={() => toggleActive(r.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${isActive ? 'bg-green-100 text-success' : 'bg-gray-200 text-gray-500'}`}>{isActive ? '啟用' : '暫停'}</button>
-                                </div>
-                            )
-                        })}
-                    </div>
-                );
-            };
-
-             const BudgetsView = () => {
+            const BudgetsView = () => {
                  const [editBudget, setEditBudget] = useState(null);
                  const [modalOpen, setModalOpen] = useState(false);
                  
@@ -1153,6 +1251,8 @@
                     case 'reconcile': return <ReconcileView />;
                     case 'accountDetail': 
                          const acc = accounts.find(a => a.id === subViewData);
+                         
+                         // Account Detail Filter Logic
                          const { start: accStart, end: accEnd } = getAccountDetailRange(detailViewDate, acc);
                          
                          const accTx = transactions.filter(t => {
@@ -1174,6 +1274,7 @@
                                     <div className="w-16"></div> {/* Spacer */}
                                 </div>
 
+                                {/* Month Navigation Header */}
                                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2 mb-4">
                                     <div className="flex justify-between items-center">
                                         <button onClick={() => changeDetailMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
