@@ -87,15 +87,27 @@
         // --- Utils ---
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
         const formatMoney = (amount) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount);
-        const formatDate = (dateStr) => {
+        
+        // Fix: Use Local Time for YYYY-MM-DD to prevent timezone issues (e.g. UTC-5 vs UTC+8)
+        const formatDate = (dateInput) => {
             try {
-                if (!dateStr) return '';
-                const d = new Date(dateStr);
-                if (isNaN(d.getTime())) return ''; // Handle Invalid Date
-                return d.toISOString().split('T')[0];
+                if (!dateInput) return '';
+                const d = new Date(dateInput);
+                if (isNaN(d.getTime())) return '';
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
             } catch (e) {
                 return '';
             }
+        };
+
+        // Helper to parse YYYY-MM-DD string to Local Date Object (00:00:00)
+        const parseDate = (str) => {
+            if(!str) return new Date();
+            const [y, m, d] = str.split('-').map(Number);
+            return new Date(y, m - 1, d);
         };
 
         const Icon = ({ name, className = "", filled = false, size = "text-2xl" }) => (
@@ -237,6 +249,7 @@
                 
                 transactions.forEach(t => {
                     // Skip future transactions for current balance calculation
+                    // String comparison works safely for YYYY-MM-DD
                     if (t.date > todayStr) return;
 
                     const amt = Number(t.amount);
@@ -296,6 +309,11 @@
                 };
                 checkRecurring();
             }, []);
+
+            const updateBalance = (tx, isDelete = false) => {
+                // Legacy function kept to prevent crash if referenced, but logic is moved to dynamic calculation
+                // We no longer update account.balance persistently for transactions
+            };
 
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
@@ -421,7 +439,9 @@
                     creditLimit: acc.creditLimit ? Number(acc.creditLimit) : "",
                     statementDate: acc.statementDate ? Number(acc.statementDate) : "",
                     dueDate: acc.dueDate ? Number(acc.dueDate) : "",
-                    cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1
+                    cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1,
+                    // startDate field is removed from UI but kept in object if present for legacy compatibility or forced default
+                    startDate: acc.startDate || formatDate(new Date()) 
                 };
                 if (accData.id) setAccounts(prev => prev.map(a => a.id === accData.id ? accData : a));
                 else { accData.id = generateId(); setAccounts(prev => [...prev, accData]); }
@@ -744,7 +764,8 @@
             const DashboardView = () => {
                 const { start: cycleStart, end: cycleEnd } = getCycleRange(viewDate, settings.cycleStartDay);
                 const currentTx = transactions.filter(t => {
-                    const d = new Date(t.date);
+                    // Use parseDate to get local time for comparison, avoiding UTC shifts
+                    const d = parseDate(t.date);
                     return d >= cycleStart && d <= cycleEnd;
                 });
                 const income = currentTx.filter(t => t.type === 'income').reduce((acc, c) => acc + parseFloat(c.amount), 0);
@@ -801,7 +822,8 @@
                                 {budgets.slice(0, 3).map(b => {
                                     // Use Budget specific cycle
                                     const { start: bStart, end: bEnd } = getCycleRange(viewDate, b.resetDay || 1);
-                                    const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && new Date(t.date) >= bStart && new Date(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
+                                    // Fix: Use parseDate to compare correctly in local time
+                                    const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
                                     const percent = Math.min((used / b.limit) * 100, 100);
                                     return (
                                         <div key={b.id} onClick={() => { setSubViewData(b.id); setView('budgetDetail'); }}>
@@ -940,7 +962,8 @@
                 
                 // Filter Transactions
                 const accTx = transactions.filter(t => {
-                    const d = new Date(t.date);
+                    // Use parseDate for comparison
+                    const d = parseDate(t.date);
                     return (t.accountId === acc.id || t.toAccountId === acc.id) && d >= accStart && d <= accEnd;
                 });
 
@@ -1223,7 +1246,8 @@
                          const { start: accStart, end: accEnd } = getAccountDetailRange(detailViewDate, acc);
                          
                          const accTx = transactions.filter(t => {
-                             const d = new Date(t.date);
+                             // Use parseDate to get local time for comparison
+                             const d = parseDate(t.date);
                              return (t.accountId === subViewData || t.toAccountId === subViewData) && d >= accStart && d <= accEnd;
                          });
 
@@ -1283,7 +1307,8 @@
                          // Note: We use viewDate (global Dashboard date) to determine which month's budget to show
                          const { start: bCycleStart, end: bCycleEnd } = getCycleRange(viewDate, bud?.resetDay || 1);
                          
-                         const bTx = transactions.filter(t => t.budgetId === subViewData && new Date(t.date) >= bCycleStart && new Date(t.date) <= bCycleEnd);
+                         // Fix: Use parseDate for comparison
+                         const bTx = transactions.filter(t => t.budgetId === subViewData && parseDate(t.date) >= bCycleStart && parseDate(t.date) <= bCycleEnd);
                          return (
                              <div className="h-full flex flex-col">
                                 <button onClick={() => setView('dashboard')} className="mb-4 text-primary font-bold flex items-center gap-1"><Icon name="arrow_back"/> 返回</button>
