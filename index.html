@@ -88,7 +88,7 @@
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
         const formatMoney = (amount) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount);
         
-        // Fix: Use Local Time for YYYY-MM-DD to prevent timezone issues (e.g. UTC-5 vs UTC+8)
+        // Fix: Use Local Time for YYYY-MM-DD to prevent timezone issues
         const formatDate = (dateInput) => {
             try {
                 if (!dateInput) return '';
@@ -192,7 +192,6 @@
             const [view, setView] = useState('dashboard');
             const [subViewData, setSubViewData] = useState(null);
             
-            // Global Dialog State
             const [dialog, setDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isAlert: false });
 
             const [accounts, setAccounts] = useState(() => JSON.parse(localStorage.getItem('accounts')) || INITIAL_DATA.accounts);
@@ -212,7 +211,6 @@
             useEffect(() => localStorage.setItem('categories', JSON.stringify(categories)), [categories]);
             useEffect(() => localStorage.setItem('settings', JSON.stringify(settings)), [settings]);
 
-            // Dialog Helper Functions
             const closeDialog = () => setDialog(prev => ({ ...prev, isOpen: false }));
             
             const showConfirm = (title, message, onConfirmCallback) => {
@@ -238,30 +236,23 @@
                 });
             };
 
-            // Calculate Dynamic Account Balance
-            // Logic: Initial Balance (from account settings) + Sum of transactions up to today
             const calculateAccountBalance = (account) => {
                 const now = new Date();
                 const todayStr = formatDate(now);
                 
-                // Use account.balance as "Initial Balance"
                 let balance = Number(account.balance) || 0;
                 
                 transactions.forEach(t => {
-                    // Skip future transactions for current balance calculation
-                    // String comparison works safely for YYYY-MM-DD
                     if (t.date > todayStr) return;
 
                     const amt = Number(t.amount);
                     
-                    // Logic for Account ID match (Decrease for Expense, Increase for Income)
                     if (t.accountId === account.id) {
                         if (t.type === 'expense') balance -= amt;
                         else if (t.type === 'income') balance += amt; 
-                        else if (t.type === 'transfer') balance -= amt; // Transfer Out
+                        else if (t.type === 'transfer') balance -= amt;
                     }
                     
-                    // Logic for Transfer IN
                     if (t.toAccountId === account.id && t.type === 'transfer') {
                         balance += amt;
                     }
@@ -270,7 +261,6 @@
                 return balance;
             };
 
-            // Recurring Check
             useEffect(() => {
                 const checkRecurring = () => {
                     const today = new Date();
@@ -310,11 +300,6 @@
                 checkRecurring();
             }, []);
 
-            const updateBalance = (tx, isDelete = false) => {
-                // Legacy function kept to prevent crash if referenced, but logic is moved to dynamic calculation
-                // We no longer update account.balance persistently for transactions
-            };
-
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
                 const month = targetDate.getMonth();
@@ -336,7 +321,6 @@
                     start.setDate(start.getDate() + 1);
                     return { start, end };
                 } else {
-                    // For Bank/Cash, prefer account-specific cycleStartDay, fallback to global settings
                     const startDay = (account.cycleStartDay && parseInt(account.cycleStartDay)) 
                                      ? parseInt(account.cycleStartDay) 
                                      : (parseInt(settings.cycleStartDay) || 1);
@@ -348,11 +332,9 @@
                 }
             };
 
-            // Global Handlers
             const handleSaveTransaction = (tx) => {
                 const installmentCount = parseInt(tx.installmentCount);
                 
-                // Installment Logic: Only for new expense transactions with count > 1
                 if (!tx.id && tx.type === 'expense' && installmentCount > 1) {
                     const totalAmount = Number(tx.amount);
                     const baseAmount = Math.floor(totalAmount / installmentCount);
@@ -363,12 +345,9 @@
 
                     for (let i = 0; i < installmentCount; i++) {
                         const amount = (i === 0) ? baseAmount + remainder : baseAmount;
-                        
-                        // Calculate Date: Add i months
                         const targetDate = new Date(y, m - 1 + i, d);
-                        // Check for day overflow (e.g. Jan 31 -> Feb)
                         if (targetDate.getMonth() !== (m - 1 + i) % 12) {
-                            targetDate.setDate(0); // Set to last day of previous month
+                            targetDate.setDate(0); 
                         }
                         const dateStr = formatDate(targetDate);
 
@@ -387,14 +366,9 @@
                         };
                         newTxList.push(newTx);
                     }
-
-                    // Update State
                     setTransactions(prev => [...newTxList, ...prev]);
-
                 } else {
-                    // Standard Single Transaction
                     const txData = { ...tx, amount: Number(tx.amount), isInstallmentItem: tx.isInstallmentItem || tx.isInstallment, reconciled: tx.reconciled || false };
-                    // Remove temporary field
                     delete txData.installmentCount; 
 
                     if (txData.id) {
@@ -440,7 +414,6 @@
                     statementDate: acc.statementDate ? Number(acc.statementDate) : "",
                     dueDate: acc.dueDate ? Number(acc.dueDate) : "",
                     cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1,
-                    // startDate field is removed from UI but kept in object if present for legacy compatibility or forced default
                     startDate: acc.startDate || formatDate(new Date()) 
                 };
                 if (accData.id) setAccounts(prev => prev.map(a => a.id === accData.id ? accData : a));
@@ -448,14 +421,11 @@
             };
 
             const handleDeleteAccount = (id) => {
-                const relatedTx = transactions.filter(t => t.accountId === id || t.toAccountId === id);
-                showConfirm('刪除帳戶', `將刪除 ${relatedTx.length} 筆相關交易，確定嗎？`, () => {
+                showConfirm('刪除帳戶', `將刪除相關交易，確定嗎？`, () => {
                     setAccounts(prev => prev.filter(a => a.id !== id));
                     setTransactions(prev => prev.filter(t => t.accountId !== id && t.toAccountId !== id));
                 });
             };
-
-            // --- Components & Views ---
 
             const TransactionFormModal = ({ initialData, isOpen, onClose, onSave, onDelete }) => {
                 const [form, setForm] = useState(initialData || {});
@@ -589,7 +559,6 @@
                                     </div>
                                 )}
                                 
-                                {/* Save Button Block - Moved inside flow to avoid being hidden */}
                                 <div className="pt-2 mt-2">
                                     <button onClick={() => { onSave(form); onClose(); }} className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
                                         {form.id ? '儲存變更' : '儲存交易'}
@@ -643,7 +612,6 @@
 
                 return (
                     <div className="flex flex-col gap-8 px-2 md:px-4">
-                        {/* Header */}
                         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-2">
                             <div className="flex flex-col gap-2">
                                 <h2 className="text-dark text-3xl md:text-4xl font-black tracking-tight">帳戶管理</h2>
@@ -651,7 +619,6 @@
                             </div>
                         </div>
 
-                        {/* Accounts Lists by Category */}
                         <div className="space-y-8">
                             {Object.entries(accountGroups).map(([type, group]) => (
                                 group.items.length > 0 && (
@@ -663,7 +630,6 @@
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                             {group.items.map(acc => {
                                                 const style = getAccountStyle(acc.type);
-                                                // Dynamic Balance Calculation for Display
                                                 const currentBalance = calculateAccountBalance(acc);
                                                 
                                                 return (
@@ -680,7 +646,6 @@
                                                                 <div className="md:hidden text-gray-400"><Icon name="more_vert" size="text-lg"/></div>
                                                             </div>
                                                             <h4 className="text-lg font-bold mb-1 text-dark truncate">{acc.name}</h4>
-                                                            {/* Display Calculated Balance */}
                                                             <p className={`text-3xl font-black mb-6 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
                                                             {acc.type === 'credit' && acc.creditLimit && (
                                                                 <p className="text-xs text-muted mb-4">額度 {formatMoney(acc.creditLimit)}</p>
@@ -697,7 +662,6 @@
                                     </div>
                                 )
                             ))}
-                            {/* If no accounts, show placeholder */}
                             {accounts.length === 0 && (
                                  <div onClick={() => { setEditAcc({ startDate: formatDate(new Date()) }); setIsModalOpen(true); }} className="group border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-8 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer min-h-[240px]">
                                     <div className="size-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-primary/20 group-hover:text-primary transition-colors mb-4">
@@ -748,9 +712,7 @@
 
                                 {editAcc?.id && <div className="text-center">
                                     <button onClick={() => {
-                                        // Trigger Global Dialog
                                         handleDeleteAccount(editAcc.id);
-                                        // Close Edit Modal immediately
                                         setIsModalOpen(false); 
                                     }} className="text-danger text-sm font-bold py-2">刪除此帳戶</button>
                                 </div>}
@@ -764,7 +726,6 @@
             const DashboardView = () => {
                 const { start: cycleStart, end: cycleEnd } = getCycleRange(viewDate, settings.cycleStartDay);
                 const currentTx = transactions.filter(t => {
-                    // Use parseDate to get local time for comparison, avoiding UTC shifts
                     const d = parseDate(t.date);
                     return d >= cycleStart && d <= cycleEnd;
                 });
@@ -820,9 +781,7 @@
                             </div>
                             <div className="space-y-4">
                                 {budgets.slice(0, 3).map(b => {
-                                    // Use Budget specific cycle
                                     const { start: bStart, end: bEnd } = getCycleRange(viewDate, b.resetDay || 1);
-                                    // Fix: Use parseDate to compare correctly in local time
                                     const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
                                     const percent = Math.min((used / b.limit) * 100, 100);
                                     return (
@@ -838,30 +797,6 @@
                                     )
                                 })}
                                 {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-2">尚未設定預算</p>}
-                            </div>
-                        </section>
-                        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-dark">最近交易</h3>
-                                <button onClick={() => setView('transactions')}><Icon name="arrow_forward" size="text-xl text-gray-400" /></button>
-                            </div>
-                            <div className="space-y-4">
-                                {transactions.slice(0, 5).map(t => (
-                                    <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between items-center active:bg-gray-50 rounded-lg p-1 -mx-1 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`size-10 rounded-full flex items-center justify-center ${t.type === 'income' ? 'bg-green-50 text-success' : 'bg-red-50 text-danger'}`}>
-                                                <Icon name={t.type === 'income' ? 'payments' : 'shopping_bag'} size="text-xl" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-dark">{t.category}</p>
-                                                <p className="text-xs text-gray-500">{t.date}</p>
-                                            </div>
-                                        </div>
-                                        <p className={`text-sm font-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}`}>
-                                            {t.type === 'income' ? '+' : '-'}{formatMoney(t.amount)}
-                                        </p>
-                                    </div>
-                                ))}
                             </div>
                         </section>
                     </div>
@@ -923,13 +858,11 @@
             };
 
             const ReconcileView = () => {
-                // Filter only credit accounts
                 const creditAccounts = accounts.filter(a => a.type === 'credit');
                 
                 const [targetAccountId, setTargetAccountId] = useState(creditAccounts[0]?.id);
                 const [targetDate, setTargetDate] = useState(new Date());
 
-                // Ensure selected account exists in credit list (handle deletions or init)
                 useEffect(() => {
                     if (creditAccounts.length > 0 && (!targetAccountId || !creditAccounts.find(a => a.id === targetAccountId))) {
                         setTargetAccountId(creditAccounts[0].id);
@@ -954,34 +887,22 @@
                     );
                 }
 
-                // Find Account
                 const acc = creditAccounts.find(a => a.id === targetAccountId) || creditAccounts[0];
-
-                // Calculate Range - Reuse getAccountDetailRange for consistent credit card cycle logic
                 const { start: accStart, end: accEnd } = getAccountDetailRange(targetDate, acc);
                 
-                // Filter Transactions
                 const accTx = transactions.filter(t => {
-                    // Use parseDate for comparison
                     const d = parseDate(t.date);
                     return (t.accountId === acc.id || t.toAccountId === acc.id) && d >= accStart && d <= accEnd;
                 });
 
-                // Calculate Reconciled Stats
                 const reconciledStats = accTx.reduce((accStat, t) => {
                     if (t.reconciled) {
                         let amount = Number(t.amount);
-                        // Logic: Is this transaction adding to debt (expense) or paying off debt (payment/income)?
-                        // For a credit card:
-                        // Expense = Spending (Increase Balance/Debt)
-                        // Income/Transfer In = Payment/Refund (Decrease Balance/Debt)
-                        
-                        // We track "Spending" vs "Payment"
                         if (t.type === 'expense' && t.accountId === acc.id) accStat.spending += amount;
-                        else if (t.type === 'income' && t.accountId === acc.id) accStat.payment += amount; // Refund/Cashback
+                        else if (t.type === 'income' && t.accountId === acc.id) accStat.payment += amount; 
                         else if (t.type === 'transfer') {
-                            if (t.accountId === acc.id) accStat.spending += amount; // Transfer Out (Cash advance?)
-                            if (t.toAccountId === acc.id) accStat.payment += amount; // Payment from bank
+                            if (t.accountId === acc.id) accStat.spending += amount; 
+                            if (t.toAccountId === acc.id) accStat.payment += amount; 
                         }
                     }
                     return accStat;
@@ -1000,9 +921,7 @@
                             <h2 className="text-xl font-bold">對帳中心</h2>
                         </div>
 
-                        {/* Controls */}
                         <div className="space-y-3 mb-4 shrink-0">
-                            {/* Account Selector */}
                             <div className="relative">
                                 <Icon name="credit_card" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size="text-xl" />
                                 <select 
@@ -1015,7 +934,6 @@
                                 <Icon name="expand_more" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size="text-xl" />
                             </div>
 
-                            {/* Month Selector */}
                             <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2">
                                 <div className="flex justify-between items-center">
                                     <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
@@ -1035,14 +953,9 @@
                             </div>
                         </div>
 
-                        {/* List */}
                         <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
                              {accTx.length > 0 ? accTx.map(t => {
-                                 // Determine direction for Credit Card
-                                 // Expense/TransferOut = Spending (-)
-                                 // Income/TransferIn = Payment (+)
                                  const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
-                                 
                                  return (
                                     <label key={t.id} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none">
                                         <div className="flex items-center gap-3">
@@ -1067,7 +980,6 @@
                             )}
                         </div>
 
-                        {/* Stats Footer */}
                         <div className="mt-4 bg-white p-4 rounded-xl shadow-lg border border-gray-100 shrink-0">
                             <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已核對金額 (本期帳單)</h4>
                             <div className="grid grid-cols-2 gap-4">
@@ -1241,12 +1153,9 @@
                     case 'reconcile': return <ReconcileView />;
                     case 'accountDetail': 
                          const acc = accounts.find(a => a.id === subViewData);
-                         
-                         // Account Detail Filter Logic
                          const { start: accStart, end: accEnd } = getAccountDetailRange(detailViewDate, acc);
                          
                          const accTx = transactions.filter(t => {
-                             // Use parseDate to get local time for comparison
                              const d = parseDate(t.date);
                              return (t.accountId === subViewData || t.toAccountId === subViewData) && d >= accStart && d <= accEnd;
                          });
@@ -1265,7 +1174,6 @@
                                     <div className="w-16"></div> {/* Spacer */}
                                 </div>
 
-                                {/* Month Navigation Header */}
                                 <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2 mb-4">
                                     <div className="flex justify-between items-center">
                                         <button onClick={() => changeDetailMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
@@ -1303,11 +1211,8 @@
                         );
                      case 'budgetDetail':
                          const bud = budgets.find(b => b.id === subViewData);
-                         // Use Budget specific cycle for detail view as well
-                         // Note: We use viewDate (global Dashboard date) to determine which month's budget to show
                          const { start: bCycleStart, end: bCycleEnd } = getCycleRange(viewDate, bud?.resetDay || 1);
                          
-                         // Fix: Use parseDate for comparison
                          const bTx = transactions.filter(t => t.budgetId === subViewData && parseDate(t.date) >= bCycleStart && parseDate(t.date) <= bCycleEnd);
                          return (
                              <div className="h-full flex flex-col">
