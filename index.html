@@ -151,22 +151,22 @@
         const App = () => {
             const INITIAL_DATA = {
                 accounts: [
-                    {"name":"LINEBANK","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1767976669996,"startDate":"2023-01-01"},
-                    {"name":"中信帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314429744,"startDate":"2023-01-01"},
-                    {"name":"國泰帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314579253,"startDate":"2023-01-01"},
-                    {"name":"聯邦帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314595473,"startDate":"2023-01-01"},
-                    {"name":"富邦帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314614394,"startDate":"2023-01-01"},
-                    {"name":"永豐帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314625361,"startDate":"2023-01-01"},
-                    {"name":"台新帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314847783,"startDate":"2023-01-01"},
-                    {"name":"中信信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":223000,"statementDate":17,"dueDate":2,"id":1768314880755,"startDate":"2023-01-01"},
-                    {"name":"國泰信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":60000,"statementDate":17,"dueDate":2,"id":1768314925613,"startDate":"2023-01-01"},
-                    {"name":"聯邦信用卡","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":90000,"statementDate":17,"dueDate":2,"id":1768314948617,"startDate":"2023-01-01"},
-                    {"name":"富邦信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":17000,"statementDate":17,"dueDate":2,"id":1768314976839,"startDate":"2023-01-01"},
-                    {"name":"永豐信用卡","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":100000,"statementDate":17,"dueDate":2,"id":1768315001854,"startDate":"2023-01-01"},
-                    {"name":"台新信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":90000,"statementDate":17,"dueDate":2,"id":1768315023302,"startDate":"2023-01-01"},
-                    {"name":"星展信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":92000,"statementDate":17,"dueDate":2,"id":1768315111005,"startDate":"2023-01-01"},
-                    {"name":"台哥大電信帳單","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":30000,"statementDate":"","dueDate":"","id":1768315154529,"startDate":"2023-01-01"},
-                    {"name":"寶貝","type":"cash","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768315378378,"startDate":"2023-01-01"}
+                    {"name":"LINEBANK","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1767976669996},
+                    {"name":"中信帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314429744},
+                    {"name":"國泰帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314579253},
+                    {"name":"聯邦帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314595473},
+                    {"name":"富邦帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314614394},
+                    {"name":"永豐帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314625361},
+                    {"name":"台新帳戶","type":"bank","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768314847783},
+                    {"name":"中信信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":223000,"statementDate":17,"dueDate":2,"id":1768314880755},
+                    {"name":"國泰信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":60000,"statementDate":17,"dueDate":2,"id":1768314925613},
+                    {"name":"聯邦信用卡","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":90000,"statementDate":17,"dueDate":2,"id":1768314948617},
+                    {"name":"富邦信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":17000,"statementDate":17,"dueDate":2,"id":1768314976839},
+                    {"name":"永豐信用卡","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":100000,"statementDate":17,"dueDate":2,"id":1768315001854},
+                    {"name":"台新信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":90000,"statementDate":17,"dueDate":2,"id":1768315023302},
+                    {"name":"星展信用卡","type":"credit","balance":0,"cycleStartDay":17,"creditLimit":92000,"statementDate":17,"dueDate":2,"id":1768315111005},
+                    {"name":"台哥大電信帳單","type":"credit","balance":0,"cycleStartDay":1,"creditLimit":30000,"statementDate":"","dueDate":"","id":1768315154529},
+                    {"name":"寶貝","type":"cash","balance":0,"cycleStartDay":1,"creditLimit":"","statementDate":"","dueDate":"","id":1768315378378}
                 ],
                 transactions: [],
                 categories: [
@@ -226,6 +226,37 @@
                 });
             };
 
+            // Calculate Dynamic Account Balance
+            // Logic: Initial Balance (from account settings) + Sum of transactions up to today
+            const calculateAccountBalance = (account) => {
+                const now = new Date();
+                const todayStr = formatDate(now);
+                
+                // Use account.balance as "Initial Balance"
+                let balance = Number(account.balance) || 0;
+                
+                transactions.forEach(t => {
+                    // Skip future transactions for current balance calculation
+                    if (t.date > todayStr) return;
+
+                    const amt = Number(t.amount);
+                    
+                    // Logic for Account ID match (Decrease for Expense, Increase for Income)
+                    if (t.accountId === account.id) {
+                        if (t.type === 'expense') balance -= amt;
+                        else if (t.type === 'income') balance += amt; 
+                        else if (t.type === 'transfer') balance -= amt; // Transfer Out
+                    }
+                    
+                    // Logic for Transfer IN
+                    if (t.toAccountId === account.id && t.type === 'transfer') {
+                        balance += amt;
+                    }
+                });
+                
+                return balance;
+            };
+
             // Recurring Check
             useEffect(() => {
                 const checkRecurring = () => {
@@ -261,29 +292,15 @@
                     if (newTx.length > 0) {
                         setTransactions(prev => [...newTx, ...prev]);
                         setRecurring(updatedRecurring);
-                        newTx.forEach(tx => updateBalance(tx, false)); 
                     }
                 };
                 checkRecurring();
             }, []);
 
-            const updateBalance = (tx, isDelete = false) => {
-                const multiplier = isDelete ? -1 : 1;
-                setAccounts(prev => prev.map(acc => {
-                    if (tx.type === 'income' && acc.id === tx.accountId) return { ...acc, balance: acc.balance + (tx.amount * multiplier) };
-                    if (tx.type === 'expense' && acc.id === tx.accountId) return { ...acc, balance: acc.balance - (tx.amount * multiplier) };
-                    if (tx.type === 'transfer') {
-                        if (acc.id === tx.accountId) return { ...acc, balance: acc.balance - (tx.amount * multiplier) };
-                        if (acc.id === tx.toAccountId) return { ...acc, balance: acc.balance + (tx.amount * multiplier) };
-                    }
-                    return acc;
-                }));
-            };
-
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
                 const month = targetDate.getMonth();
-                const day = parseInt(startDay) || 1; // Fallback to 1 if NaN
+                const day = parseInt(startDay) || 1; 
                 let start = new Date(year, month, day);
                 let end = new Date(year, month + 1, day);
                 end.setDate(end.getDate() - 1);
@@ -295,7 +312,7 @@
                 const month = targetDate.getMonth();
 
                 if (account.type === 'credit' && account.statementDate) {
-                    const statementDay = parseInt(account.statementDate) || 1; // Fallback
+                    const statementDay = parseInt(account.statementDate) || 1; 
                     const end = new Date(year, month, statementDay);
                     const start = new Date(year, month - 1, statementDay);
                     start.setDate(start.getDate() + 1);
@@ -355,7 +372,6 @@
 
                     // Update State
                     setTransactions(prev => [...newTxList, ...prev]);
-                    newTxList.forEach(t => updateBalance(t, false));
 
                 } else {
                     // Standard Single Transaction
@@ -364,14 +380,11 @@
                     delete txData.installmentCount; 
 
                     if (txData.id) {
-                        const oldTx = transactions.find(t => t.id === txData.id);
-                        updateBalance(oldTx, true);
                         setTransactions(prev => prev.map(t => t.id === txData.id ? txData : t));
                     } else {
                         txData.id = generateId();
                         setTransactions(prev => [txData, ...prev]);
                     }
-                    updateBalance(txData, false);
                     
                     if (txData.setRecurring) {
                         setRecurring(prev => [...prev, {
@@ -392,9 +405,7 @@
             };
 
             const handleDeleteTransaction = (id) => {
-                const tx = transactions.find(t => t.id === id);
                 showConfirm('刪除交易', '確定刪除此交易？', () => {
-                    updateBalance(tx, true);
                     setTransactions(prev => prev.filter(t => t.id !== id));
                 });
             };
@@ -410,8 +421,7 @@
                     creditLimit: acc.creditLimit ? Number(acc.creditLimit) : "",
                     statementDate: acc.statementDate ? Number(acc.statementDate) : "",
                     dueDate: acc.dueDate ? Number(acc.dueDate) : "",
-                    cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1,
-                    startDate: acc.startDate || formatDate(new Date()) 
+                    cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1
                 };
                 if (accData.id) setAccounts(prev => prev.map(a => a.id === accData.id ? accData : a));
                 else { accData.id = generateId(); setAccounts(prev => [...prev, accData]); }
@@ -633,6 +643,9 @@
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                             {group.items.map(acc => {
                                                 const style = getAccountStyle(acc.type);
+                                                // Dynamic Balance Calculation for Display
+                                                const currentBalance = calculateAccountBalance(acc);
+                                                
                                                 return (
                                                     <div key={acc.id} onClick={() => { setSubViewData(acc.id); setDetailViewDate(new Date()); setView('accountDetail'); }} 
                                                         className={`group bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col`}
@@ -647,7 +660,8 @@
                                                                 <div className="md:hidden text-gray-400"><Icon name="more_vert" size="text-lg"/></div>
                                                             </div>
                                                             <h4 className="text-lg font-bold mb-1 text-dark truncate">{acc.name}</h4>
-                                                            <p className={`text-3xl font-black mb-6 tabular-nums ${acc.balance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(acc.balance)}</p>
+                                                            {/* Display Calculated Balance */}
+                                                            <p className={`text-3xl font-black mb-6 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
                                                             {acc.type === 'credit' && acc.creditLimit && (
                                                                 <p className="text-xs text-muted mb-4">額度 {formatMoney(acc.creditLimit)}</p>
                                                             )}
@@ -681,7 +695,8 @@
                                     <option value="cash">現金 / 銀行</option>
                                     <option value="credit">信用卡</option>
                                 </select>
-                                <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg" placeholder="目前餘額 (例如：25000)" value={editAcc?.balance ?? ''} onChange={e => setEditAcc({...editAcc, balance: e.target.value})} />
+                                <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg" placeholder="初始餘額 (例如：25000)" value={editAcc?.balance ?? ''} onChange={e => setEditAcc({...editAcc, balance: e.target.value})} />
+                                <p className="text-xs text-gray-400 -mt-2">此金額將作為計算起點，後續交易將在此基礎上增減。</p>
                                 
                                 {editAcc?.type !== 'credit' && (
                                     <div>
