@@ -259,9 +259,11 @@
                 return balance;
             };
 
+            // Recurring Logic Update: Project transactions up to 3 years
             useEffect(() => {
                 const checkRecurring = () => {
                     const now = new Date();
+                    // Limit is 3 years future
                     const limitDate = new Date(now.getFullYear() + 3, now.getMonth(), 1); 
                     
                     let newTx = [];
@@ -305,19 +307,24 @@
                             }
                             
                             const dateStr = formatDate(nextDate);
-                            newTx.push({
-                                id: generateId(),
-                                date: dateStr,
-                                amount: Number(currentRule.amount),
-                                type: currentRule.type,
-                                accountId: currentRule.accountId,
-                                category: currentRule.category,
-                                budgetId: currentRule.budgetId, 
-                                recurringRuleId: currentRule.id, // Link to rule
-                                note: (currentRule.note || currentRule.name) + ' (定期)',
-                                isRecurring: true,
-                                reconciled: false
-                            });
+                            
+                            const exists = transactions.some(t => t.recurringRuleId === currentRule.id && t.date === dateStr);
+                            
+                            if (!exists) {
+                                newTx.push({
+                                    id: generateId(),
+                                    date: dateStr,
+                                    amount: Number(currentRule.amount),
+                                    type: currentRule.type,
+                                    accountId: currentRule.accountId,
+                                    category: currentRule.category,
+                                    budgetId: currentRule.budgetId, 
+                                    recurringRuleId: currentRule.id, 
+                                    note: (currentRule.note || currentRule.name) + ' (定期)',
+                                    isRecurring: true,
+                                    reconciled: false
+                                });
+                            }
                             
                             lastRun = nextDate;
                             currentRule.lastRunDate = dateStr;
@@ -334,7 +341,7 @@
                 };
                 
                 checkRecurring();
-            }, [recurring.length, recurring.map(r => r.active).join(',')]); 
+            }, [recurring.length, recurring.map(r => r.active).join(','), recurring.map(r => r.lastRunDate).join(',')]); 
 
             const getCycleRange = (targetDate, startDay) => {
                 const year = targetDate.getFullYear();
@@ -633,88 +640,6 @@
                 );
             };
 
-            const DashboardView = () => {
-                const { start: cycleStart, end: cycleEnd } = getCycleRange(viewDate, settings.cycleStartDay);
-                const currentTx = transactions.filter(t => {
-                    const d = parseDate(t.date);
-                    return d >= cycleStart && d <= cycleEnd;
-                });
-                const income = currentTx.filter(t => t.type === 'income').reduce((acc, c) => acc + parseFloat(c.amount), 0);
-                const expense = currentTx.filter(t => t.type === 'expense').reduce((acc, c) => acc + parseFloat(c.amount), 0);
-                
-                const changeMonth = (delta) => {
-                    const newDate = new Date(viewDate);
-                    newDate.setMonth(newDate.getMonth() + delta);
-                    setViewDate(newDate);
-                };
-
-                return (
-                    <div className="space-y-6">
-                        <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3">
-                            <div className="flex justify-between items-center">
-                                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
-                                <div className="text-center">
-                                    <div className="font-bold text-lg text-dark">
-                                        {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                        {formatDate(cycleStart)} ~ {formatDate(cycleEnd)}
-                                    </div>
-                                </div>
-                                <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_right" /></button>
-                            </div>
-                            <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-                                <span className="text-xs text-gray-500 font-medium">週期起始日</span>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-sm font-bold text-primary">每月</span>
-                                    <select className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right" value={settings.cycleStartDay} onChange={e => setSettings({...settings, cycleStartDay: e.target.value})}>
-                                        {[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-                                    </select>
-                                    <span className="text-sm font-bold text-primary">號</span>
-                                </div>
-                            </div>
-                        </div>
-                        <section className="grid grid-cols-2 gap-4">
-                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-xs font-medium text-gray-500 mb-1">週期收入</p>
-                                <h3 className="text-2xl font-extrabold text-success">{formatMoney(income)}</h3>
-                            </div>
-                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                <p className="text-xs font-medium text-gray-500 mb-1">週期支出</p>
-                                <h3 className="text-2xl font-extrabold text-danger">{formatMoney(expense)}</h3>
-                            </div>
-                        </section>
-                        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-dark">預算概覽</h3>
-                                <button onClick={() => setView('budgets')} className="text-primary text-sm font-bold">查看詳情</button>
-                            </div>
-                            <div className="space-y-4">
-                                {budgets.slice(0, 3).map(b => {
-                                    const { start: bStart, end: bEnd } = getCycleRange(viewDate, b.resetDay || 1);
-                                    const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
-                                    const percent = Math.min((used / b.limit) * 100, 100);
-                                    return (
-                                        <div key={b.id} onClick={() => { setSubViewData(b.id); setView('budgetDetail'); }}>
-                                            <div className="flex justify-between text-sm mb-1">
-                                                <span>{b.name}</span>
-                                                <span className="text-xs text-gray-500 font-normal mt-0.5">
-                                                    {formatMoney(used)} / {formatMoney(b.limit)}
-                                                </span>
-                                            </div>
-                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
-                                                <div className={`h-full ${used > b.limit ? 'bg-danger' : 'bg-primary'}`} style={{width: `${percent}%`}}></div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                                {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-2">尚未設定預算</p>}
-                            </div>
-                        </section>
-                    </div>
-                );
-            };
-
             const AccountsView = () => {
                 const [isModalOpen, setIsModalOpen] = useState(false);
                 const [editAcc, setEditAcc] = useState(null);
@@ -859,6 +784,88 @@
                 );
             };
 
+            const DashboardView = () => {
+                const { start: cycleStart, end: cycleEnd } = getCycleRange(viewDate, settings.cycleStartDay);
+                const currentTx = transactions.filter(t => {
+                    const d = parseDate(t.date);
+                    return d >= cycleStart && d <= cycleEnd;
+                });
+                const income = currentTx.filter(t => t.type === 'income').reduce((acc, c) => acc + parseFloat(c.amount), 0);
+                const expense = currentTx.filter(t => t.type === 'expense').reduce((acc, c) => acc + parseFloat(c.amount), 0);
+                
+                const changeMonth = (delta) => {
+                    const newDate = new Date(viewDate);
+                    newDate.setMonth(newDate.getMonth() + delta);
+                    setViewDate(newDate);
+                };
+
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3">
+                            <div className="flex justify-between items-center">
+                                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
+                                <div className="text-center">
+                                    <div className="font-bold text-lg text-dark">
+                                        {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        {formatDate(cycleStart)} ~ {formatDate(cycleEnd)}
+                                    </div>
+                                </div>
+                                <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_right" /></button>
+                            </div>
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                                <span className="text-xs text-gray-500 font-medium">週期起始日</span>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-sm font-bold text-primary">每月</span>
+                                    <select className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right" value={settings.cycleStartDay} onChange={e => setSettings({...settings, cycleStartDay: e.target.value})}>
+                                        {[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+                                    </select>
+                                    <span className="text-sm font-bold text-primary">號</span>
+                                </div>
+                            </div>
+                        </div>
+                        <section className="grid grid-cols-2 gap-4">
+                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-xs font-medium text-gray-500 mb-1">週期收入</p>
+                                <h3 className="text-2xl font-extrabold text-success">{formatMoney(income)}</h3>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                <p className="text-xs font-medium text-gray-500 mb-1">週期支出</p>
+                                <h3 className="text-2xl font-extrabold text-danger">{formatMoney(expense)}</h3>
+                            </div>
+                        </section>
+                        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-dark">預算概覽</h3>
+                                <button onClick={() => setView('budgets')} className="text-primary text-sm font-bold">查看詳情</button>
+                            </div>
+                            <div className="space-y-4">
+                                {budgets.slice(0, 3).map(b => {
+                                    const { start: bStart, end: bEnd } = getCycleRange(viewDate, b.resetDay || 1);
+                                    const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
+                                    const percent = Math.min((used / b.limit) * 100, 100);
+                                    return (
+                                        <div key={b.id} onClick={() => { setSubViewData(b.id); setView('budgetDetail'); }}>
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span>{b.name}</span>
+                                                <span className="text-xs text-gray-500 font-normal mt-0.5">
+                                                    {formatMoney(used)} / {formatMoney(b.limit)}
+                                                </span>
+                                            </div>
+                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
+                                                <div className={`h-full ${used > b.limit ? 'bg-danger' : 'bg-primary'}`} style={{width: `${percent}%`}}></div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-2">尚未設定預算</p>}
+                            </div>
+                        </section>
+                    </div>
+                );
+            };
+
             const RecurringView = () => {
                 const [editRule, setEditRule] = useState(null);
                 
@@ -869,35 +876,30 @@
                 const handleSaveRule = () => {
                     if (!editRule) return;
                     
-                    // 1. Update Rule Registry
-                    setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
-                        ...editRule, 
-                        amount: Number(editRule.amount),
-                        isActive: editRule.active 
-                    } : r));
-
-                    // 2. Update existing future/unreconciled transactions linked to this rule
-                    // Logic: Update ALL future projected items (to reflect budget/amount/account changes)
-                    // If terminated (active=false), remove them.
-                    
                     const todayStr = formatDate(new Date());
 
                     if (!editRule.active) {
-                        // TERMINATE: Remove all future unreconciled items
                         setTransactions(prev => prev.filter(t => {
                             const isLinked = t.recurringRuleId === editRule.id;
-                            const isFuture = t.date >= todayStr; 
-                            // Remove if linked, future, and not reconciled
-                            if (isLinked && isFuture && !t.reconciled) return false;
+                            const isStrictlyFuture = t.date > todayStr; // Changed from >= to > to keep today
+                            
+                            if (isLinked && isStrictlyFuture && !t.reconciled) return false;
                             return true;
                         }));
+
+                        setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
+                            ...editRule, 
+                            amount: Number(editRule.amount),
+                            isActive: false,
+                            lastRunDate: todayStr 
+                        } : r));
+
                     } else {
-                        // UPDATE: Modify future items
                         setTransactions(prev => prev.map(t => {
                              const isLinked = t.recurringRuleId === editRule.id;
-                             const isFuture = t.date >= todayStr; 
+                             const isFutureOrToday = t.date >= todayStr; 
 
-                             if (isLinked && isFuture && !t.reconciled) {
+                             if (isLinked && isFutureOrToday && !t.reconciled) {
                                  return {
                                      ...t,
                                      amount: Number(editRule.amount),
@@ -909,6 +911,12 @@
                              }
                              return t;
                         }));
+
+                        setRecurring(prev => prev.map(r => r.id === editRule.id ? { 
+                            ...editRule, 
+                            amount: Number(editRule.amount),
+                            isActive: true
+                        } : r));
                     }
 
                     setEditRule(null);
