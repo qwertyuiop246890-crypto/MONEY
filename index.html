@@ -411,7 +411,6 @@
                     statementDate: acc.statementDate ? Number(acc.statementDate) : "",
                     dueDate: acc.dueDate ? Number(acc.dueDate) : "",
                     cycleStartDay: acc.cycleStartDay ? Number(acc.cycleStartDay) : 1,
-                    // startDate field is removed from UI but kept in object if present for legacy compatibility or forced default
                     startDate: acc.startDate || formatDate(new Date()) 
                 };
                 if (accData.id) setAccounts(prev => prev.map(a => a.id === accData.id ? accData : a));
@@ -458,9 +457,9 @@
                 const calcButtons = ['7','8','9','/','4','5','6','*','1','2','3','-','.','0','backspace','+'];
 
                 return (
-                    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-4xl" title={form.id ? '編輯交易' : '新增交易'} fullMobile>
-                        <div className="flex flex-col md:flex-row h-full pb-safe">
-                            <div className="flex-1 p-4 md:p-8 space-y-4 pb-20 md:pb-8">
+                    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-sm" title={form.id ? '編輯交易' : '新增交易'}>
+                        <div className="flex flex-col h-full pb-safe">
+                            <div className="flex-1 p-4 space-y-4">
                                 <div className="flex p-1 bg-gray-200 rounded-lg">
                                     {['expense', 'income', 'transfer'].map(t => (
                                         <label key={t} className="flex-1 cursor-pointer">
@@ -559,14 +558,18 @@
                                         <label htmlFor="recurring" className="text-sm font-medium text-gray-600">設為定期自動記帳</label>
                                     </div>
                                 )}
-                                {form.id && (
-                                    <button onClick={() => { onDelete(form.id); onClose(); }} className="w-full py-3 bg-red-50 text-danger font-bold rounded-xl mt-4">刪除此交易</button>
-                                )}
-                                <div className="h-4"></div>
+                                
+                                {/* Save Button Block - Moved inside flow to avoid being hidden */}
+                                <div className="pt-2 mt-2">
+                                    <button onClick={() => { onSave(form); onClose(); }} className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                                        {form.id ? '儲存變更' : '儲存交易'}
+                                    </button>
+                                    {form.id && (
+                                        <button onClick={() => { onDelete(form.id); onClose(); }} className="w-full py-3 bg-red-50 text-danger font-bold rounded-xl mt-3">刪除此交易</button>
+                                    )}
+                                </div>
                             </div>
-                            <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20 pb-safe">
-                                <button onClick={() => { onSave(form); onClose(); }} className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">儲存交易</button>
-                            </div>
+                            
                             {isCalcActive && (
                                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-backdrop">
                                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden relative modal-enter">
