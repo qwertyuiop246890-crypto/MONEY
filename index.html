@@ -40,7 +40,11 @@
                         sans: ["Inter", "Noto Sans TC", "sans-serif"]
                     },
                     padding: {
-                        'safe': 'env(safe-area-inset-bottom)'
+                        'safe': 'env(safe-area-inset-bottom)',
+                        'safe-top': 'env(safe-area-inset-top)'
+                    },
+                    margin: {
+                        'safe-top': 'env(safe-area-inset-top)'
                     }
                 }
             }
@@ -800,7 +804,8 @@
                 };
 
                 return (
-                    <div className="space-y-6">
+                    // Added mt-4 here to push the dashboard content down
+                    <div className="space-y-6 mt-4">
                         <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3">
                             <div className="flex justify-between items-center">
                                 <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
@@ -1419,7 +1424,7 @@
             return (
                 <div className="flex flex-col h-full bg-background-light relative">
                     {/* Header */}
-                    <header className="px-5 py-4 bg-white border-b border-gray-100 flex justify-between items-center sticky top-0 z-10 shrink-0 pb-safe-top">
+                    <header className="px-5 py-4 pt-safe-top bg-white border-b border-gray-100 flex justify-between items-center sticky top-0 z-10 shrink-0">
                         <h1 className="text-xl font-black text-primary tracking-tight">MyMoney</h1>
                     </header>
 
@@ -1481,3 +1486,4 @@
     </script>
 </body>
 </html>
+
