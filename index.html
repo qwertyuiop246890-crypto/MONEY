@@ -146,7 +146,7 @@
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5 flex flex-col gap-4 animate-scale-in">
                         <div className="text-center">
                             <h3 className="text-lg font-bold text-dark mb-2">{title}</h3>
-                            <p className="text-sm text-gray-500">{message}</p>
+                            <p className="text-sm text-gray-500 whitespace-pre-line">{message}</p>
                         </div>
                         <div className="flex gap-3">
                             {!isAlert && (
@@ -1028,7 +1028,6 @@
                     setIsSyncing(true);
                     try {
                         if (action === 'upload') {
-                            // 使用 text/plain 避免 Google Apps Script 的 CORS 預檢問題
                             const response = await fetch(settings.syncUrl, { 
                                 method: 'POST', 
                                 headers: { "Content-Type": "text/plain" },
@@ -1051,9 +1050,22 @@
                             showConfirm('還原資料', '這將覆蓋本地所有資料，確定嗎？', async () => {
                                 try {
                                     const response = await fetch(`${settings.syncUrl}?action=download`);
-                                    if (!response.ok) throw new Error('網路回應不正常');
+                                    if (!response.ok) {
+                                        // 嘗試讀取錯誤訊息，如果讀不到就給預設
+                                        const errText = await response.text().catch(() => '網路回應不正常');
+                                        throw new Error(`伺服器錯誤: ${response.status}\n${errText.slice(0, 50)}...`); 
+                                    }
                                     
-                                    const resData = await response.json();
+                                    const resText = await response.text();
+                                    let resData;
+                                    try {
+                                        resData = JSON.parse(resText);
+                                    } catch (e) {
+                                        // 如果解析 JSON 失敗，通常代表回傳了 HTML (例如 404 頁面或登入頁面)
+                                        console.error("JSON Parse Error:", e);
+                                        console.log("Raw Response:", resText);
+                                        throw new Error('無法解析伺服器回應。\n請檢查 URL 是否正確 (結尾應為 /exec)\n並確認已發布為「新版本」。');
+                                    }
                                     
                                     if (resData.status === 'success' && resData.data) {
                                         const { data } = resData;
@@ -1061,7 +1073,6 @@
                                         setTransactions(data.transactions || []);
                                         setBudgets(data.budgets || []); 
                                         setRecurring(data.recurring || []);
-                                        // settings 不完全覆蓋，保留原本的 URL
                                         setSettings(prev => ({ ...data.settings, syncUrl: prev.syncUrl }));
                                         
                                         showAlert('成功', '資料已從 Google Drive 還原');
@@ -1074,9 +1085,6 @@
                                     setIsSyncing(false);
                                 }
                             });
-                            // 下面這個 return 是為了讓 showConfirm 的 callback 處理 loading 狀態，
-                            // 但因為 showConfirm 是 callback base，這裡的 setIsSyncing(false) 會在 confirm 彈出時就執行
-                            // 所以我們簡單處理，若取消 confirm 則手動恢復
                             return; 
                         }
                     } catch(e) { 
@@ -1105,7 +1113,7 @@
                         </div>
                         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm p-5">
                             <h3 className="font-bold mb-4 flex items-center gap-2"><Icon name="cloud_sync" className="text-primary"/> 資料同步 (Google Drive)</h3>
-                            <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4 text-sm" placeholder="請輸入 Google Apps Script URL" value={settings.syncUrl} onChange={e => setSettings({...settings, syncUrl: e.target.value})} />
+                            <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4 text-sm" placeholder="Google Apps Script URL (/exec)" value={settings.syncUrl} onChange={e => setSettings({...settings, syncUrl: e.target.value})} />
                             <div className="flex gap-3">
                                 <button 
                                     onClick={() => sync('upload')} 
@@ -1123,8 +1131,8 @@
                                 </button>
                             </div>
                             <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                                * 需配合專屬 Google Apps Script 部署使用。<br/>
-                                * 資料將儲存於您的 Google Drive 根目錄下的 "MyMoney_Data.json"。
+                                * 若其他裝置讀不到資料，請確認 GAS 已發布「新版本」且 URL 結尾為 /exec。<br/>
+                                * 資料儲存於 Google Drive 根目錄的 "MyMoney_Data.json"。
                             </p>
                         </div>
                     </div>
