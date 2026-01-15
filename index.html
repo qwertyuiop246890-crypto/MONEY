@@ -835,7 +835,12 @@
                                 <span className="text-xs text-gray-500 font-medium">週期起始日</span>
                                 <div className="flex items-center gap-1">
                                     <span className="text-sm font-bold text-primary">每月</span>
-                                    <select className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right" value={settings.cycleStartDay} onChange={e => setSettings({...settings, cycleStartDay: e.target.value})}>
+                                    {/* Modified Select: Removed Custom Arrow and added appearance-none */}
+                                    <select 
+                                        className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none" 
+                                        value={settings.cycleStartDay} 
+                                        onChange={e => setSettings({...settings, cycleStartDay: e.target.value})}
+                                    >
                                         {[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                                     </select>
                                     <span className="text-sm font-bold text-primary">號</span>
@@ -1167,6 +1172,7 @@
                         <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
                              {accTx.length > 0 ? accTx.map(t => {
                                  const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
+                                 const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
                                  return (
                                     <label key={t.id} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none">
                                         <div className="flex items-center gap-3">
@@ -1177,7 +1183,11 @@
                                                 </div>
                                             </div>
                                             <div>
-                                                <div className={`font-bold text-sm ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark'}`}>{t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
+                                                <div className={`font-bold text-sm ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark'}`}>
+                                                    {t.category || (t.type === 'transfer' ? '轉帳' : '')}
+                                                    {t.note ? ` ${t.note}` : ''}
+                                                    {budgetName ? ` ${budgetName}` : ''}
+                                                </div>
                                                 <div className="text-xs text-gray-400">{t.date}</div>
                                             </div>
                                         </div>
@@ -1292,32 +1302,87 @@
             };
 
             const TransactionsView = () => {
-                const [filterMonth, setFilterMonth] = useState(formatDate(new Date()).slice(0, 7));
-                const filteredTx = transactions.filter(t => t.date.startsWith(filterMonth));
-                const groupedTx = filteredTx.reduce((acc, tx) => { (acc[tx.date] = acc[tx.date] || []).push(tx); return acc; }, {});
+                // Use a local view date for browsing transactions, defaulting to current date
+                const [txViewDate, setTxViewDate] = useState(new Date());
+                
+                const { start: cycleStart, end: cycleEnd } = getCycleRange(txViewDate, settings.cycleStartDay);
+                
+                // Filter transactions based on the calculated cycle range
+                const filteredTx = transactions.filter(t => {
+                    const d = parseDate(t.date);
+                    return d >= cycleStart && d <= cycleEnd;
+                });
+                
+                // Group by date
+                const groupedTx = filteredTx.reduce((acc, tx) => { 
+                    (acc[tx.date] = acc[tx.date] || []).push(tx); 
+                    return acc; 
+                }, {});
+
+                const changeMonth = (delta) => {
+                    const newDate = new Date(txViewDate);
+                    newDate.setMonth(newDate.getMonth() + delta);
+                    setTxViewDate(newDate);
+                };
 
                 return (
                     <div className="space-y-4 h-full flex flex-col">
-                        <div className="flex justify-between items-center shrink-0">
-                            <h2 className="text-2xl font-bold">交易紀錄</h2>
-                            <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-white border border-gray-200 rounded-lg text-sm p-1" />
+                        <div className="flex flex-col gap-3 shrink-0">
+                             <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold">交易紀錄</h2>
+                             </div>
+                             
+                             {/* Cycle Navigation & Settings */}
+                             <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                    <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_left" /></button>
+                                    <div className="text-center">
+                                        <div className="font-bold text-dark">{txViewDate.getFullYear()}年 {txViewDate.getMonth() + 1}月</div>
+                                        <div className="text-xs text-gray-500">
+                                            {formatDate(cycleStart)} ~ {formatDate(cycleEnd)}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_right" /></button>
+                                </div>
+                                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                                    <span className="text-xs text-gray-500 font-medium">週期起始日</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm font-bold text-primary">每月</span>
+                                        <select 
+                                            className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none" 
+                                            value={settings.cycleStartDay} 
+                                            onChange={e => setSettings({...settings, cycleStartDay: e.target.value})}
+                                        >
+                                            {[...Array(28)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+                                        </select>
+                                        <span className="text-sm font-bold text-primary">號</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                         <div className="flex-1 overflow-y-auto space-y-4 pb-20">
                             {Object.keys(groupedTx).sort((a,b)=>b.localeCompare(a)).map(date => (
                                 <div key={date}>
                                     <p className="text-xs font-bold text-gray-400 mb-2 ml-1">{date}</p>
                                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                                        {groupedTx[date].map(t => (
+                                        {groupedTx[date].map(t => {
+                                            const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                            return (
                                             <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between items-center p-4 border-b border-gray-50 last:border-0 active:bg-gray-50">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`size-8 rounded-full flex items-center justify-center ${t.type==='income'?'bg-green-100 text-success':t.type==='expense'?'bg-red-100 text-danger':'bg-blue-100 text-primary'}`}>
                                                         <Icon name={t.type==='income'?'payments':'shopping_bag'} size="text-sm"/>
                                                     </div>
-                                                    <span className="font-bold text-dark text-sm">{t.category}</span>
+                                                    <span className="font-bold text-dark text-sm">
+                                                        {t.category || (t.type === 'transfer' ? '轉帳' : '')}
+                                                        {t.note ? ` ${t.note}` : ''}
+                                                        {budgetName ? ` ${budgetName}` : ''}
+                                                    </span>
                                                 </div>
                                                 <span className={`font-bold ${t.type==='income'?'text-success':'text-danger'}`}>{formatMoney(t.amount)}</span>
                                             </div>
-                                        ))}
+                                        )})}
                                     </div>
                                 </div>
                             ))}
@@ -1383,17 +1448,23 @@
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
-                                    {accTx.length > 0 ? accTx.map(t => (
+                                    {accTx.length > 0 ? accTx.map(t => {
+                                        const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                        return (
                                         <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer active:bg-gray-50 hover:bg-gray-50 transition-colors">
                                             <div>
-                                                <div className="font-bold text-dark text-sm">{t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
+                                                <div className="font-bold text-dark text-sm">
+                                                    {t.category || (t.type === 'transfer' ? '轉帳' : '')}
+                                                    {t.note ? ` ${t.note}` : ''}
+                                                    {budgetName ? ` ${budgetName}` : ''}
+                                                </div>
                                                 <div className="text-xs text-gray-400">{t.date}</div>
                                             </div>
                                             <span className={`font-bold ${t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ?'text-danger':'text-success'}`}>
                                                 {t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ? '-' : '+'}{formatMoney(t.amount)}
                                             </span>
                                         </div>
-                                    )) : (
+                                    )}) : (
                                         <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>
                                     )}
                                 </div>
@@ -1415,15 +1486,21 @@
                                      </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
-                                    {bTx.length > 0 ? bTx.map(t => (
+                                    {bTx.length > 0 ? bTx.map(t => {
+                                        const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                        return (
                                         <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer active:bg-gray-50 hover:bg-gray-50 transition-colors">
                                             <div>
-                                                <div className="font-bold text-dark">{t.category}</div>
+                                                <div className="font-bold text-dark">
+                                                    {t.category}
+                                                    {t.note ? ` ${t.note}` : ''}
+                                                    {budgetName ? ` ${budgetName}` : ''}
+                                                </div>
                                                 <div className="text-xs text-gray-400">{t.date}</div>
                                             </div>
                                             <span className="text-danger font-bold">-{formatMoney(t.amount)}</span>
                                         </div>
-                                    )) : (
+                                    )}) : (
                                         <div className="p-8 text-center text-gray-400">本週期無消費紀錄</div>
                                     )}
                                 </div>
@@ -1498,5 +1575,3 @@
     </script>
 </body>
 </html>
-
-
