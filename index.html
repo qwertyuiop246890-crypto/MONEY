@@ -1020,27 +1020,69 @@
             };
 
             const MenuView = () => {
+                const [isSyncing, setIsSyncing] = useState(false);
+
                 const sync = async (action) => {
                     if (!settings.syncUrl) return showAlert('錯誤', '請先設定 URL');
                     
-                    if (action === 'upload') {
-                        try {
-                            await fetch(settings.syncUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ accounts, transactions, budgets, recurring, categories, settings }) });
-                            showAlert('成功', '請求已發送');
-                        } catch(e) { showAlert('失敗', e.message); }
-                    } else {
-                        showConfirm('還原資料', '這將覆蓋本地所有資料，確定嗎？', async () => {
-                            try {
-                                const res = await fetch(settings.syncUrl);
-                                const data = await res.json();
-                                if (data) {
-                                    setAccounts(data.accounts || []); setTransactions(data.transactions || []);
-                                    setBudgets(data.budgets || []); setRecurring(data.recurring || []);
-                                    setSettings(data.settings || {});
-                                    showAlert('成功', '同步成功');
+                    setIsSyncing(true);
+                    try {
+                        if (action === 'upload') {
+                            // 使用 text/plain 避免 Google Apps Script 的 CORS 預檢問題
+                            const response = await fetch(settings.syncUrl, { 
+                                method: 'POST', 
+                                headers: { "Content-Type": "text/plain" },
+                                body: JSON.stringify({ 
+                                    action: 'upload',
+                                    data: { accounts, transactions, budgets, recurring, categories, settings } 
+                                }) 
+                            });
+                            
+                            const resText = await response.text();
+                            let resData;
+                            try { resData = JSON.parse(resText); } catch(e) { resData = { status: 'error', message: resText }; }
+
+                            if (resData.status === 'success') {
+                                showAlert('成功', '資料已備份至 Google Drive');
+                            } else {
+                                throw new Error(resData.message || '上傳失敗');
+                            }
+                        } else {
+                            showConfirm('還原資料', '這將覆蓋本地所有資料，確定嗎？', async () => {
+                                try {
+                                    const response = await fetch(`${settings.syncUrl}?action=download`);
+                                    if (!response.ok) throw new Error('網路回應不正常');
+                                    
+                                    const resData = await response.json();
+                                    
+                                    if (resData.status === 'success' && resData.data) {
+                                        const { data } = resData;
+                                        setAccounts(data.accounts || []); 
+                                        setTransactions(data.transactions || []);
+                                        setBudgets(data.budgets || []); 
+                                        setRecurring(data.recurring || []);
+                                        // settings 不完全覆蓋，保留原本的 URL
+                                        setSettings(prev => ({ ...data.settings, syncUrl: prev.syncUrl }));
+                                        
+                                        showAlert('成功', '資料已從 Google Drive 還原');
+                                    } else {
+                                        throw new Error(resData.message || '無資料或格式錯誤');
+                                    }
+                                } catch(e) { 
+                                    showAlert('還原失敗', e.message); 
+                                } finally {
+                                    setIsSyncing(false);
                                 }
-                            } catch(e) { showAlert('失敗', e.message); }
-                        });
+                            });
+                            // 下面這個 return 是為了讓 showConfirm 的 callback 處理 loading 狀態，
+                            // 但因為 showConfirm 是 callback base，這裡的 setIsSyncing(false) 會在 confirm 彈出時就執行
+                            // 所以我們簡單處理，若取消 confirm 則手動恢復
+                            return; 
+                        }
+                    } catch(e) { 
+                        showAlert('同步失敗', e.message); 
+                    } finally {
+                        if (action === 'upload') setIsSyncing(false);
                     }
                 };
 
@@ -1062,12 +1104,28 @@
                             <MenuLink icon="fact_check" label="對帳中心" onClick={() => setView('reconcile')} />
                         </div>
                         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm p-5">
-                            <h3 className="font-bold mb-4 flex items-center gap-2"><Icon name="cloud_sync" className="text-primary"/> 資料同步</h3>
-                            <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4 text-sm" placeholder="Google Apps Script URL" value={settings.syncUrl} onChange={e => setSettings({...settings, syncUrl: e.target.value})} />
+                            <h3 className="font-bold mb-4 flex items-center gap-2"><Icon name="cloud_sync" className="text-primary"/> 資料同步 (Google Drive)</h3>
+                            <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4 text-sm" placeholder="請輸入 Google Apps Script URL" value={settings.syncUrl} onChange={e => setSettings({...settings, syncUrl: e.target.value})} />
                             <div className="flex gap-3">
-                                <button onClick={() => sync('upload')} className="flex-1 bg-primary text-white py-2 rounded-lg font-bold text-sm">備份上傳</button>
-                                <button onClick={() => sync('download')} className="flex-1 bg-gray-100 text-dark py-2 rounded-lg font-bold text-sm">還原下載</button>
+                                <button 
+                                    onClick={() => sync('upload')} 
+                                    disabled={isSyncing}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-sm text-white transition-all ${isSyncing ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary shadow-lg shadow-primary/30 active:scale-95'}`}
+                                >
+                                    {isSyncing ? '處理中...' : '備份上傳'}
+                                </button>
+                                <button 
+                                    onClick={() => sync('download')} 
+                                    disabled={isSyncing}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-sm text-dark bg-gray-100 transition-all ${isSyncing ? 'opacity-50 cursor-not-allowed' : 'active:bg-gray-200'}`}
+                                >
+                                    還原下載
+                                </button>
                             </div>
+                            <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+                                * 需配合專屬 Google Apps Script 部署使用。<br/>
+                                * 資料將儲存於您的 Google Drive 根目錄下的 "MyMoney_Data.json"。
+                            </p>
                         </div>
                     </div>
                 );
