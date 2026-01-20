@@ -119,14 +119,13 @@
         );
 
         // --- Shared Component: DateController ---
-        // Refactored to accept generic cycleDay value and onChange handler
         const DateController = ({ 
             currentDate, 
             onChangeDate, 
             cycleStart, 
             cycleEnd, 
-            cycleDay,          // Current cycle day value
-            onCycleDayChange,  // Handler for changing cycle day
+            cycleDay,          
+            onCycleDayChange,  
             isCreditCard = false, 
             creditCardInfo = null 
         }) => {
@@ -147,7 +146,6 @@
                     
                     <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
                         {isCreditCard ? (
-                            // Info Only Mode (Credit Card / Budget / Fixed)
                             <>
                                 <span className="text-xs text-gray-500 font-medium">{creditCardInfo ? '帳單資訊' : '每月結帳日'}</span>
                                 <div className="text-sm font-bold text-primary">
@@ -155,7 +153,6 @@
                                 </div>
                             </>
                         ) : (
-                            // Editable Mode (Cash / Bank / Global Dashboard)
                             <>
                                 <span className="text-xs text-gray-500 font-medium">每月結帳日</span>
                                 <div className="flex items-center gap-1">
@@ -248,9 +245,23 @@
             const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('categories')) || INITIAL_DATA.categories);
             const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('settings')) || { cycleStartDay: 31, syncUrl: '' });
 
+            // --- SMART DATE INITIALIZATION HELPER ---
+            const getInitialDateForCycle = (closingDayParam) => {
+                const now = new Date();
+                const closingDay = parseInt(closingDayParam) || 31;
+                
+                // If today (e.g., 20th) is after closing day (e.g., 17th), 
+                // it belongs to the NEXT billing cycle.
+                // So we default the view to the NEXT month to show today's data correctly.
+                if (now.getDate() > closingDay) {
+                    return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                }
+                return now;
+            };
+
             // Global Dashboard Date
-            const [viewDate, setViewDate] = useState(new Date()); 
-            // Shared independent date for detail views to allow browsing without changing dashboard
+            const [viewDate, setViewDate] = useState(() => getInitialDateForCycle(settings.cycleStartDay)); 
+            // Shared independent date for detail views
             const [subViewDate, setSubViewDate] = useState(new Date());
 
             useEffect(() => localStorage.setItem('accounts', JSON.stringify(accounts)), [accounts]);
@@ -408,7 +419,6 @@
                     start.setDate(start.getDate() + 1);
                     return { start, end };
                 } else {
-                    // Use Account's own cycle day, fallback to global setting, default to 31
                     const closingDay = (parseInt(account.cycleStartDay) || parseInt(settings.cycleStartDay) || 31);
                     return getCycleRange(targetDate, closingDay);
                 }
@@ -673,7 +683,12 @@
                                                 const style = getAccountStyle(acc.type);
                                                 const currentBalance = calculateAccountBalance(acc);
                                                 return (
-                                                    <div key={acc.id} onClick={() => { setSubViewData(acc.id); setSubViewDate(new Date()); setView('accountDetail'); }} className={`group bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col`}>
+                                                    <div key={acc.id} onClick={() => { 
+                                                        setSubViewData(acc.id); 
+                                                        const closingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
+                                                        setSubViewDate(getInitialDateForCycle(closingDay)); 
+                                                        setView('accountDetail'); 
+                                                    }} className={`group bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col`}>
                                                         <div className="p-5 flex-1 flex flex-col">
                                                             <div className="flex justify-between items-start mb-6">
                                                                 <div className={`${style.badge} px-2.5 py-1 rounded-full text-xs font-bold`}>{style.label}</div>
@@ -687,7 +702,12 @@
                                                             <p className={`text-3xl font-black mb-6 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
                                                             {acc.type === 'credit' && acc.creditLimit && <p className="text-xs text-muted mb-4">額度 {formatMoney(acc.creditLimit)}</p>}
                                                             <div className="flex gap-2 mt-auto">
-                                                                <button onClick={(e) => { e.stopPropagation(); setSubViewData(acc.id); setSubViewDate(new Date()); setView('accountDetail'); }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
+                                                                <button onClick={(e) => { e.stopPropagation(); 
+                                                                    setSubViewData(acc.id); 
+                                                                    const closingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
+                                                                    setSubViewDate(getInitialDateForCycle(closingDay)); 
+                                                                    setView('accountDetail'); 
+                                                                }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
                                                                 {acc.type === 'credit' && (
                                                                     <button onClick={(e) => { 
                                                                         e.stopPropagation(); 
@@ -790,7 +810,7 @@
                         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-dark">預算概覽</h3>
-                                <button onClick={() => { setSubViewDate(new Date()); setView('budgets'); }} className="text-primary text-sm font-bold">查看詳情</button>
+                                <button onClick={() => { setSubViewDate(getInitialDateForCycle(settings.cycleStartDay)); setView('budgets'); }} className="text-primary text-sm font-bold">查看詳情</button>
                             </div>
                             <div className="space-y-4">
                                 {budgets.slice(0, 3).map(b => {
@@ -798,7 +818,7 @@
                                     const used = transactions.filter(t => t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd).reduce((acc, c) => acc + parseFloat(c.amount), 0);
                                     const percent = Math.min((used / b.limit) * 100, 100);
                                     return (
-                                        <div key={b.id} onClick={() => { setSubViewData(b.id); setSubViewDate(new Date()); setView('budgetDetail'); }}>
+                                        <div key={b.id} onClick={() => { setSubViewData(b.id); setSubViewDate(getInitialDateForCycle(b.resetDay)); setView('budgetDetail'); }}>
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span>{b.name}</span>
                                                 <span className="text-xs text-gray-500 font-normal mt-0.5">{formatMoney(used)} / {formatMoney(b.limit)}</span>
@@ -1081,7 +1101,12 @@
                         <h2 className="text-2xl font-bold px-1">更多功能</h2>
                         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
                             <button onClick={() => { setSubViewDate(new Date()); setView('recurring'); }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50"><div className="flex items-center gap-3"><Icon name="event_repeat" className="text-gray-400"/><span className="font-bold text-dark">定期扣款管理</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
-                            <button onClick={() => { setSubViewDate(new Date()); setView('reconcile'); }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50"><div className="flex items-center gap-3"><Icon name="fact_check" className="text-gray-400"/><span className="font-bold text-dark">對帳中心</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
+                            <button onClick={() => { 
+                                const firstCredit = accounts.find(a => a.type === 'credit');
+                                const date = firstCredit ? getInitialDateForCycle(firstCredit.statementDate) : new Date();
+                                setSubViewDate(date); 
+                                setView('reconcile'); 
+                            }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50"><div className="flex items-center gap-3"><Icon name="fact_check" className="text-gray-400"/><span className="font-bold text-dark">對帳中心</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
                         </div>
                         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm p-5">
                             <h3 className="font-bold mb-4 flex items-center gap-2"><Icon name="cloud_sync" className="text-primary"/> 資料同步 (Google Drive)</h3>
@@ -1261,7 +1286,10 @@
                     </div>
                     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center pb-safe pt-2 z-40">
                         {[{id:'dashboard',icon:'dashboard',label:'首頁'},{id:'accounts',icon:'account_balance_wallet',label:'帳戶'},{id:'transactions',icon:'receipt_long',label:'明細'},{id:'budgets',icon:'pie_chart',label:'預算'},{id:'menu',icon:'menu',label:'更多'}].map(item => (
-                            <button key={item.id} onClick={() => { if(item.id === 'transactions') setSubViewDate(new Date()); setView(item.id); }} className={`flex flex-col items-center w-full py-1 active:scale-95 transition-transform ${view === item.id ? 'text-primary' : 'text-gray-400'}`}>
+                            <button key={item.id} onClick={() => { 
+                                if(item.id === 'transactions') setSubViewDate(getInitialDateForCycle(settings.cycleStartDay)); 
+                                setView(item.id); 
+                            }} className={`flex flex-col items-center w-full py-1 active:scale-95 transition-transform ${view === item.id ? 'text-primary' : 'text-gray-400'}`}>
                                 <Icon name={item.icon} className={view === item.id ? 'filled' : ''} /><span className="text-[10px] font-bold mt-0.5">{item.label}</span>
                             </button>
                         ))}
