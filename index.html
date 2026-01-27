@@ -79,6 +79,14 @@
         .checkbox-wrapper input:checked + div svg {
             display: block;
         }
+
+        /* Clean select for date picker */
+        .clean-select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: none !important; /* Force remove default arrow */
+        }
     </style>
 </head>
 <body class="bg-background-light text-dark antialiased h-screen overflow-hidden selection:bg-primary/20 selection:text-primary">
@@ -157,10 +165,12 @@
                                 <span className="text-xs text-gray-500 font-medium">每月結帳日</span>
                                 <div className="flex items-center gap-1">
                                     <span className="text-sm font-bold text-primary">每月</span>
+                                    {/* Added clean-select and bg-none to remove the arrow completely */}
                                     <select 
-                                        className="bg-transparent text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none" 
+                                        className="bg-transparent bg-none clean-select text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none text-center" 
                                         value={cycleDay} 
                                         onChange={e => onCycleDayChange(e.target.value)}
+                                        style={{ textAlignLast: 'center' }} 
                                     >
                                         {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                                     </select>
@@ -838,15 +848,13 @@
 
             const ReconcileView = () => {
                 const creditAccounts = accounts.filter(a => a.type === 'credit');
-                // FIXED: Use subViewData from App state instead of local state to persist selection across re-renders
                 const targetAccountId = subViewData; 
                 
                 useEffect(() => {
-                    // Ensure valid ID if subViewData is empty or not in credit accounts
                     if (creditAccounts.length > 0 && (!targetAccountId || !creditAccounts.find(a => a.id === targetAccountId))) {
                         setSubViewData(creditAccounts[0].id);
                     }
-                }, [creditAccounts.length, targetAccountId]); // Optimized dependencies
+                }, [creditAccounts.length, targetAccountId]);
 
                 if (creditAccounts.length === 0) {
                     return (
@@ -891,6 +899,12 @@
                     setSubViewDate(newDate);
                 };
 
+                const getAvatarInfo = (t) => {
+                    if (t.type === 'transfer') return { bg: 'bg-blue-50', color: 'text-primary' };
+                    if (t.type === 'income') return { bg: 'bg-green-50', color: 'text-success' };
+                    return { bg: 'bg-red-50', color: 'text-danger' };
+                };
+
                 return (
                     <div className="h-full flex flex-col">
                          <div className="flex items-center gap-2 mb-4 shrink-0">
@@ -920,21 +934,28 @@
                         <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
                              {accTx.length > 0 ? accTx.map(t => {
                                  const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
+                                 const info = getAvatarInfo(t);
+                                 const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                 
                                  return (
                                     <label key={t.id} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none">
-                                        <div className="flex items-center gap-3">
-                                            <div className="relative">
+                                        <div className="flex items-center gap-3 flex-1 overflow-hidden mr-2">
+                                            <div className="relative shrink-0">
                                                 <input type="checkbox" checked={!!t.reconciled} onChange={() => handleToggleReconcile(t.id)} className="peer appearance-none w-5 h-5 border-2 border-gray-300 rounded-md checked:bg-primary checked:border-primary transition-colors absolute opacity-0" />
                                                 <div className="w-6 h-6 border-2 border-gray-300 rounded-lg flex items-center justify-center transition-colors">
                                                      <Icon name="check" size="text-sm" className="text-white hidden pointer-events-none" />
                                                 </div>
                                             </div>
-                                            <div>
-                                                <div className={`font-bold text-sm ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark'}`}>{t.category || (t.type === 'transfer' ? '轉帳' : '')} {t.note}</div>
+                                            <div className={`size-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${info.bg} ${info.color}`}>
+                                                {t.category ? t.category.substring(0, 2) : (t.type === 'transfer' ? '轉帳' : '其他')}
+                                            </div>
+                                            <div className="flex flex-col overflow-hidden">
+                                                <div className={`font-bold text-sm truncate ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark'}`}>{t.note || t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
                                                 <div className="text-xs text-gray-400">{t.date}</div>
+                                                {budgetName && <div className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded w-fit mt-0.5">{budgetName}</div>}
                                             </div>
                                         </div>
-                                        <span className={`font-bold ${t.reconciled ? 'text-gray-300' : (isSpending ? 'text-danger' : 'text-success')}`}>{isSpending ? '-' : '+'}{formatMoney(t.amount)}</span>
+                                        <span className={`font-bold shrink-0 ${t.reconciled ? 'text-gray-300' : (isSpending ? 'text-danger' : 'text-success')}`}>{isSpending ? '-' : '+'}{formatMoney(t.amount)}</span>
                                     </label>
                                  );
                              }) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
@@ -968,6 +989,12 @@
                     setSubViewDate(newDate);
                 };
 
+                const getAvatarInfo = (t) => {
+                    if (t.type === 'transfer') return { bg: 'bg-blue-50', color: 'text-primary' };
+                    if (t.type === 'income') return { bg: 'bg-green-50', color: 'text-success' };
+                    return { bg: 'bg-red-50', color: 'text-danger' };
+                };
+
                 return (
                     <div className="space-y-4 h-full flex flex-col">
                         <div className="flex flex-col gap-3 shrink-0">
@@ -988,13 +1015,19 @@
                                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                                         {groupedTx[date].map(t => {
                                             const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                            const info = getAvatarInfo(t);
                                             return (
                                             <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between items-center p-4 border-b border-gray-50 last:border-0 active:bg-gray-50">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`size-8 rounded-full flex items-center justify-center ${t.type==='income'?'bg-green-100 text-success':t.type==='expense'?'bg-red-100 text-danger':'bg-blue-100 text-primary'}`}><Icon name={t.type==='income'?'payments':'shopping_bag'} size="text-sm"/></div>
-                                                    <span className="font-bold text-dark text-sm">{t.category || (t.type === 'transfer' ? '轉帳' : '')} {t.note} {budgetName ? ` ${budgetName}` : ''}</span>
+                                                <div className="flex items-center gap-3 flex-1 overflow-hidden mr-2">
+                                                    <div className={`size-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${info.bg} ${info.color}`}>
+                                                        {t.category ? t.category.substring(0, 2) : (t.type === 'transfer' ? '轉帳' : '其他')}
+                                                    </div>
+                                                    <div className="flex flex-col overflow-hidden">
+                                                        <span className="font-bold text-dark text-sm truncate">{t.note || t.category || (t.type === 'transfer' ? '轉帳' : '')}</span>
+                                                        {budgetName && <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded w-fit mt-0.5">{budgetName}</span>}
+                                                    </div>
                                                 </div>
-                                                <span className={`font-bold ${t.type==='income'?'text-success':'text-danger'}`}>{formatMoney(t.amount)}</span>
+                                                <span className={`font-bold shrink-0 ${t.type==='income'?'text-success':'text-danger'}`}>{formatMoney(t.amount)}</span>
                                             </div>
                                         )})}
                                     </div>
@@ -1106,7 +1139,6 @@
                                 const firstCredit = accounts.find(a => a.type === 'credit');
                                 const date = firstCredit ? getInitialDateForCycle(firstCredit.statementDate) : new Date();
                                 setSubViewDate(date); 
-                                // FIXED: Initialize the subViewData with the first account ID to prevent null/stale state
                                 if (firstCredit) setSubViewData(firstCredit.id);
                                 setView('reconcile'); 
                             }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50"><div className="flex items-center gap-3"><Icon name="fact_check" className="text-gray-400"/><span className="font-bold text-dark">對帳中心</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
@@ -1187,6 +1219,12 @@
                              setSubViewDate(newDate);
                          };
 
+                         const getAvatarInfo = (t) => {
+                            if (t.type === 'transfer') return { bg: 'bg-blue-50', color: 'text-primary' };
+                            if (t.type === 'income') return { bg: 'bg-green-50', color: 'text-success' };
+                            return { bg: 'bg-red-50', color: 'text-danger' };
+                        };
+
                          return (
                             <div className="h-full flex flex-col">
                                 <div className="flex items-center justify-between mb-4">
@@ -1203,7 +1241,6 @@
                                         cycleEnd={accEnd} 
                                         isCreditCard={acc.type === 'credit'}
                                         creditCardInfo={acc.statementDate ? `結帳日: 每月 ${acc.statementDate} 號` : null}
-                                        // For Cash/Bank: Show their own cycleStartDay, and update IT directly
                                         cycleDay={acc.cycleStartDay || settings.cycleStartDay}
                                         onCycleDayChange={(val) => {
                                             const newVal = parseInt(val);
@@ -1216,13 +1253,20 @@
                                 <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
                                     {accTx.length > 0 ? accTx.map(t => {
                                         const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                        const info = getAvatarInfo(t);
                                         return (
                                         <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer active:bg-gray-50 hover:bg-gray-50 transition-colors">
-                                            <div>
-                                                <div className="font-bold text-dark text-sm">{t.category || (t.type === 'transfer' ? '轉帳' : '')} {t.note} {budgetName ? ` ${budgetName}` : ''}</div>
-                                                <div className="text-xs text-gray-400">{t.date}</div>
+                                            <div className="flex items-center gap-3 flex-1 overflow-hidden mr-2">
+                                                <div className={`size-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${info.bg} ${info.color}`}>
+                                                    {t.category ? t.category.substring(0, 2) : (t.type === 'transfer' ? '轉帳' : '其他')}
+                                                </div>
+                                                <div className="flex flex-col overflow-hidden">
+                                                    <div className="font-bold text-dark text-sm truncate">{t.note || t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
+                                                    <div className="text-xs text-gray-400">{t.date}</div>
+                                                    {budgetName && <div className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded w-fit mt-0.5">{budgetName}</div>}
+                                                </div>
                                             </div>
-                                            <span className={`font-bold ${t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ?'text-danger':'text-success'}`}>{t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ? '-' : '+'}{formatMoney(t.amount)}</span>
+                                            <span className={`font-bold shrink-0 ${t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ?'text-danger':'text-success'}`}>{t.type==='expense' || (t.type==='transfer' && t.accountId===acc.id) ? '-' : '+'}{formatMoney(t.amount)}</span>
                                         </div>
                                     )}) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
                                 </div>
@@ -1239,6 +1283,12 @@
                              setSubViewDate(newDate);
                          };
 
+                         const getAvatarInfoBudget = (t) => {
+                            if (t.type === 'transfer') return { bg: 'bg-blue-50', color: 'text-primary' };
+                            if (t.type === 'income') return { bg: 'bg-green-50', color: 'text-success' };
+                            return { bg: 'bg-red-50', color: 'text-danger' };
+                        };
+
                          return (
                              <div className="h-full flex flex-col">
                                 <div className="flex items-center justify-between mb-4">
@@ -1253,7 +1303,7 @@
                                         onChangeDate={changeBudgetMonth} 
                                         cycleStart={bCycleStart} 
                                         cycleEnd={bCycleEnd} 
-                                        isCreditCard={true} // Use info mode
+                                        isCreditCard={true} 
                                         creditCardInfo={`結算日: 每月 ${bud.resetDay || 31} 號`}
                                     />
                                 </div>
@@ -1261,10 +1311,19 @@
                                 <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
                                     {bTx.length > 0 ? bTx.map(t => {
                                         const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                        const info = getAvatarInfoBudget(t);
                                         return (
                                         <div key={t.id} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer active:bg-gray-50 hover:bg-gray-50 transition-colors">
-                                            <div><div className="font-bold text-dark">{t.category} {t.note}</div><div className="text-xs text-gray-400">{t.date}</div></div>
-                                            <span className="text-danger font-bold">-{formatMoney(t.amount)}</span>
+                                            <div className="flex items-center gap-3 flex-1 overflow-hidden mr-2">
+                                                <div className={`size-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${info.bg} ${info.color}`}>
+                                                    {t.category ? t.category.substring(0, 2) : (t.type === 'transfer' ? '轉帳' : '其他')}
+                                                </div>
+                                                <div className="flex flex-col overflow-hidden">
+                                                    <div className="font-bold text-dark text-sm truncate">{t.note || t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
+                                                    <div className="text-xs text-gray-400">{t.date}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-danger font-bold shrink-0">-{formatMoney(t.amount)}</span>
                                         </div>
                                     )}) : <div className="p-8 text-center text-gray-400">本週期無消費紀錄</div>}
                                 </div>
@@ -1308,4 +1367,5 @@
     </script>
 </body>
 </html>
+
 
