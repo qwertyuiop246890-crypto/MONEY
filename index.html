@@ -838,14 +838,15 @@
 
             const ReconcileView = () => {
                 const creditAccounts = accounts.filter(a => a.type === 'credit');
-                const [targetAccountId, setTargetAccountId] = useState(creditAccounts[0]?.id);
-                // Use subViewDate for reconcile date browsing
+                // FIXED: Use subViewData from App state instead of local state to persist selection across re-renders
+                const targetAccountId = subViewData; 
                 
                 useEffect(() => {
+                    // Ensure valid ID if subViewData is empty or not in credit accounts
                     if (creditAccounts.length > 0 && (!targetAccountId || !creditAccounts.find(a => a.id === targetAccountId))) {
-                        setTargetAccountId(creditAccounts[0].id);
+                        setSubViewData(creditAccounts[0].id);
                     }
-                }, [creditAccounts, targetAccountId]);
+                }, [creditAccounts.length, targetAccountId]); // Optimized dependencies
 
                 if (creditAccounts.length === 0) {
                     return (
@@ -900,7 +901,7 @@
                         <div className="space-y-3 mb-4 shrink-0">
                             <div className="relative">
                                 <Icon name="credit_card" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size="text-xl" />
-                                <select className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-dark focus:ring-1 focus:ring-primary outline-none appearance-none" value={acc.id} onChange={e => setTargetAccountId(parseInt(e.target.value))}>
+                                <select className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-dark focus:ring-1 focus:ring-primary outline-none appearance-none" value={acc.id} onChange={e => setSubViewData(parseInt(e.target.value))}>
                                     {creditAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                 </select>
                                 <Icon name="expand_more" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size="text-xl" />
@@ -1105,6 +1106,8 @@
                                 const firstCredit = accounts.find(a => a.type === 'credit');
                                 const date = firstCredit ? getInitialDateForCycle(firstCredit.statementDate) : new Date();
                                 setSubViewDate(date); 
+                                // FIXED: Initialize the subViewData with the first account ID to prevent null/stale state
+                                if (firstCredit) setSubViewData(firstCredit.id);
                                 setView('reconcile'); 
                             }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50"><div className="flex items-center gap-3"><Icon name="fact_check" className="text-gray-400"/><span className="font-bold text-dark">對帳中心</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
                         </div>
@@ -1305,5 +1308,4 @@
     </script>
 </body>
 </html>
-
 
