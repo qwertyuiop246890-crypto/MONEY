@@ -198,7 +198,6 @@
                                 <span className="text-xs text-gray-500 font-medium">每月結帳日</span>
                                 <div className="flex items-center gap-1">
                                     <span className="text-sm font-bold text-primary">每月</span>
-                                    {/* Added clean-select and bg-none to remove the arrow completely */}
                                     <select 
                                         className="bg-transparent bg-none clean-select text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none text-center" 
                                         value={cycleDay} 
@@ -216,8 +215,7 @@
             );
         };
 
-        // --- Extracted ReconcileView (Fixes Scroll Issue) ---
-        // Moving this outside of App ensures the component is not redefined on every render.
+        // --- Extracted ReconcileView ---
         const ReconcileView = ({ 
             accounts, 
             transactions, 
@@ -232,9 +230,10 @@
         }) => {
             const creditAccounts = useMemo(() => accounts.filter(a => a.type === 'credit'), [accounts]);
             const targetAccountId = subViewData; 
+            const isAllCards = targetAccountId === 'all';
             
             useEffect(() => {
-                if (creditAccounts.length > 0 && (!targetAccountId || !creditAccounts.find(a => a.id === targetAccountId))) {
+                if (creditAccounts.length > 0 && targetAccountId !== 'all' && (!targetAccountId || !creditAccounts.find(a => a.id === targetAccountId))) {
                     setSubViewData(creditAccounts[0].id);
                 }
             }, [creditAccounts, targetAccountId, setSubViewData]);
@@ -255,24 +254,57 @@
                 );
             }
 
-            const acc = creditAccounts.find(a => a.id === targetAccountId) || creditAccounts[0];
-            const { start: accStart, end: accEnd } = getAccountDetailRange(subViewDate, acc, defaultClosingDay);
-            
-            // Filter AND Sort by Date (Descending)
-            const accTx = transactions.filter(t => {
-                const d = parseDate(t.date);
-                return (t.accountId === acc.id || t.toAccountId === acc.id) && d >= accStart && d <= accEnd;
-            }).sort((a, b) => b.date.localeCompare(a.date));
+            let accStart, accEnd, accTx;
+            const acc = isAllCards ? null : (creditAccounts.find(a => a.id === targetAccountId) || creditAccounts[0]);
+
+            if (isAllCards) {
+                // "All Cards" mode: Use Global Closing Day (or default 31)
+                const range = getCycleRange(subViewDate, defaultClosingDay || 31);
+                accStart = range.start;
+                accEnd = range.end;
+                
+                accTx = transactions.filter(t => {
+                    const d = parseDate(t.date);
+                    // Check if account involved is a credit account
+                    const account = accounts.find(a => a.id === t.accountId);
+                    const toAccount = accounts.find(a => a.id === t.toAccountId);
+                    const isCreditRelated = (account?.type === 'credit') || (toAccount?.type === 'credit');
+                    
+                    return isCreditRelated && d >= accStart && d <= accEnd;
+                }).sort((a, b) => b.date.localeCompare(a.date));
+
+            } else {
+                // Specific Card
+                const range = getAccountDetailRange(subViewDate, acc, defaultClosingDay);
+                accStart = range.start;
+                accEnd = range.end;
+                
+                accTx = transactions.filter(t => {
+                    const d = parseDate(t.date);
+                    return (t.accountId === acc.id || t.toAccountId === acc.id) && d >= accStart && d <= accEnd;
+                }).sort((a, b) => b.date.localeCompare(a.date));
+            }
 
             const reconciledStats = accTx.reduce((accStat, t) => {
+                const tAccId = t.accountId;
+                const tToAccId = t.toAccountId;
+                const accType = accounts.find(a => a.id === tAccId)?.type;
+                const toAccType = accounts.find(a => a.id === tToAccId)?.type;
+                
+                // Logic: Only count transactions that affect the selected credit account(s)
+                
+                const isRelevantExpense = isAllCards 
+                    ? (t.type === 'expense' && accType === 'credit') || (t.type === 'transfer' && accType === 'credit')
+                    : (t.type === 'expense' && tAccId === acc.id) || (t.type === 'transfer' && tAccId === acc.id);
+                
+                const isRelevantPayment = isAllCards
+                    ? (t.type === 'income' && accType === 'credit') || (t.type === 'transfer' && toAccType === 'credit')
+                    : (t.type === 'income' && tAccId === acc.id) || (t.type === 'transfer' && tToAccId === acc.id);
+
                 if (t.reconciled) {
                     let amount = Number(t.amount);
-                    if (t.type === 'expense' && t.accountId === acc.id) accStat.spending += amount;
-                    else if (t.type === 'income' && t.accountId === acc.id) accStat.payment += amount; 
-                    else if (t.type === 'transfer') {
-                        if (t.accountId === acc.id) accStat.spending += amount; 
-                        if (t.toAccountId === acc.id) accStat.payment += amount; 
-                    }
+                    if (isRelevantExpense) accStat.spending += amount;
+                    if (isRelevantPayment) accStat.payment += amount;
                 }
                 return accStat;
             }, { spending: 0, payment: 0 });
@@ -299,7 +331,8 @@
                     <div className="space-y-3 mb-4 shrink-0">
                         <div className="relative">
                             <Icon name="credit_card" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size="text-xl" />
-                            <select className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-dark focus:ring-1 focus:ring-primary outline-none appearance-none" value={acc.id} onChange={e => setSubViewData(parseInt(e.target.value))}>
+                            <select className="w-full p-3 pl-10 bg-white border border-gray-200 rounded-xl font-bold text-dark focus:ring-1 focus:ring-primary outline-none appearance-none" value={subViewData || ''} onChange={e => setSubViewData(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}>
+                                <option value="all">所有信用卡合計</option>
                                 {creditAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                             </select>
                             <Icon name="expand_more" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size="text-xl" />
@@ -311,15 +344,16 @@
                             cycleStart={accStart} 
                             cycleEnd={accEnd} 
                             isCreditCard={true}
-                            creditCardInfo={acc.statementDate ? `結帳日: 每月 ${acc.statementDate} 號` : null}
+                            creditCardInfo={isAllCards ? "所有信用卡帳務" : (acc?.statementDate ? `結帳日: 每月 ${acc.statementDate} 號` : null)}
                         />
                     </div>
 
-                    <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100 pb-24">
                             {accTx.length > 0 ? accTx.map(t => {
-                                const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
+                                const isSpending = t.type === 'expense' || (t.type === 'transfer' && accounts.find(a=>a.id===t.accountId)?.type === 'credit');
                                 const info = getAvatarInfo(t);
                                 const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
+                                const tAccName = accounts.find(a => a.id === t.accountId)?.name;
                                 
                                 return (
                                 <label key={t.id} className="flex justify-between p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none">
@@ -335,7 +369,10 @@
                                         </div>
                                         <div className="flex flex-col overflow-hidden">
                                             <div className={`font-bold text-sm truncate ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark'}`}>{t.note || t.category || (t.type === 'transfer' ? '轉帳' : '')}</div>
-                                            <div className="text-xs text-gray-400">{t.date}</div>
+                                            <div className="text-xs text-gray-400 flex gap-2">
+                                                <span>{t.date}</span>
+                                                {isAllCards && <span className="text-primary bg-primary/5 px-1 rounded">{tAccName}</span>}
+                                            </div>
                                             {budgetName && <div className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded w-fit mt-0.5">{budgetName}</div>}
                                         </div>
                                     </div>
@@ -344,15 +381,17 @@
                                 );
                             }) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
                     </div>
-                    <div className="mt-4 bg-white p-4 rounded-xl shadow-lg border border-gray-100 shrink-0">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已核對金額 (本期帳單)</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><span className="text-xs text-gray-400 block">新增消費</span><span className="text-lg font-bold text-danger">{formatMoney(reconciledStats.spending)}</span></div>
-                            <div><span className="text-xs text-gray-400 block">繳款/退款</span><span className="text-lg font-bold text-success">{formatMoney(reconciledStats.payment)}</span></div>
-                        </div>
-                        <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between items-center">
-                            <span className="text-sm font-bold text-gray-600">本期應繳總額</span>
-                            <span className="text-xl font-black text-dark">{formatMoney(reconciledStats.spending - reconciledStats.payment)}</span>
+                    <div className="fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-2xl shadow-[0_-5px_15px_rgba(0,0,0,0.05)] border-t border-gray-100 z-10 safe-pb">
+                        <div className="max-w-lg mx-auto">
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已核對金額 (本期帳單)</h4>
+                            <div className="grid grid-cols-2 gap-4 mb-2">
+                                <div><span className="text-xs text-gray-400 block">新增消費</span><span className="text-lg font-bold text-danger">{formatMoney(reconciledStats.spending)}</span></div>
+                                <div><span className="text-xs text-gray-400 block">繳款/退款</span><span className="text-lg font-bold text-success">{formatMoney(reconciledStats.payment)}</span></div>
+                            </div>
+                            <div className="border-t border-gray-100 pt-2 flex justify-between items-center">
+                                <span className="text-sm font-bold text-gray-600">已核對總額</span>
+                                <span className="text-xl font-black text-dark">{formatMoney(reconciledStats.spending - reconciledStats.payment)}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -363,7 +402,7 @@
         const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-lg", fullMobile = false }) => {
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in sm:p-4 p-0">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-backdrop animate-fade-in sm:p-4 p-0">
                     <div className={`bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${maxWidth} ${fullMobile ? 'h-full sm:h-auto rounded-none sm:rounded-2xl' : 'max-h-[90vh]'} flex flex-col overflow-hidden relative`}>
                          <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center shrink-0 bg-white sticky top-0 z-10">
                             <h3 className="text-lg font-bold text-dark">{title}</h3>
@@ -436,18 +475,13 @@
                 const now = new Date();
                 const closingDay = parseInt(closingDayParam) || 31;
                 
-                // If today (e.g., 20th) is after closing day (e.g., 17th), 
-                // it belongs to the NEXT billing cycle.
-                // So we default the view to the NEXT month to show today's data correctly.
                 if (now.getDate() > closingDay) {
                     return new Date(now.getFullYear(), now.getMonth() + 1, 1);
                 }
                 return now;
             };
 
-            // Global Dashboard Date
             const [viewDate, setViewDate] = useState(() => getInitialDateForCycle(settings.cycleStartDay)); 
-            // Shared independent date for detail views
             const [subViewDate, setSubViewDate] = useState(new Date());
 
             useEffect(() => localStorage.setItem('accounts', JSON.stringify(accounts)), [accounts]);
@@ -669,6 +703,18 @@
                 });
             };
 
+            const moveAccount = (id, direction) => {
+                const index = accounts.findIndex(a => a.id === id);
+                if (index < 0) return;
+                const newAccounts = [...accounts];
+                if (direction === 'up' && index > 0) {
+                    [newAccounts[index - 1], newAccounts[index]] = [newAccounts[index], newAccounts[index - 1]];
+                } else if (direction === 'down' && index < newAccounts.length - 1) {
+                    [newAccounts[index + 1], newAccounts[index]] = [newAccounts[index], newAccounts[index + 1]];
+                }
+                setAccounts(newAccounts);
+            };
+
             const TransactionFormModal = ({ initialData, isOpen, onClose, onSave, onDelete }) => {
                 const [form, setForm] = useState({ setRecurring: false, ...initialData });
                 const [calcDisplay, setCalcDisplay] = useState('0');
@@ -683,18 +729,53 @@
                 }, [initialData]);
 
                 const handleChange = (f, v) => setForm(p => ({ ...p, [f]: v }));
-                const handleCalcPress = (key) => {
-                    if (key === 'C') setCalcDisplay('0');
-                    else if (key === 'OK') {
-                        try {
-                            const result = Function('"use strict";return (' + calcDisplay + ')')();
-                            handleChange('amount', result);
-                            setIsCalcActive(false);
-                        } catch (e) { alert('計算錯誤'); }
-                    } else if (key === 'backspace') setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
-                    else setCalcDisplay(prev => prev === '0' && !['/','*','-','+','.'].includes(key) ? String(key) : prev + key);
+                
+                const calculateResult = (expression) => {
+                    try {
+                        // Basic validation to prevent arbitrary code execution
+                        if (/[^0-9+\-*/.\s]/.test(expression)) return expression;
+                        // eslint-disable-next-line no-new-func
+                        const result = Function('"use strict";return (' + expression + ')')();
+                        return String(result);
+                    } catch (e) {
+                        return 'Error';
+                    }
                 };
-                const calcButtons = ['7','8','9','/','4','5','6','*','1','2','3','-','.','0','backspace','+'];
+
+                const handleCalcPress = (key) => {
+                    if (key === 'C') {
+                        setCalcDisplay('0');
+                    } else if (key === '=') {
+                        const res = calculateResult(calcDisplay);
+                        setCalcDisplay(res);
+                    } else if (key === 'OK') {
+                        // Check if it's an expression like "100+50" that hasn't been evaluated
+                        let finalVal = calcDisplay;
+                        if (/[+\-*/]/.test(calcDisplay)) {
+                            finalVal = calculateResult(calcDisplay);
+                        }
+                        if (finalVal === 'Error') {
+                            alert('計算錯誤');
+                        } else {
+                            handleChange('amount', finalVal);
+                            setIsCalcActive(false);
+                        }
+                    } else if (key === 'backspace') {
+                        setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+                    } else {
+                        // Append logic
+                        setCalcDisplay(prev => prev === '0' && !['/','*','-','+','.'].includes(key) ? String(key) : prev + key);
+                    }
+                };
+
+                // Updated Calculator Layout
+                const calcButtons = [
+                    'C', '/', '*', 'backspace',
+                    '7', '8', '9', '-',
+                    '4', '5', '6', '+',
+                    '1', '2', '3', '=',
+                    '0', '.', 'OK'
+                ];
 
                 return (
                     <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-sm" title={form.id ? '編輯交易' : '新增交易'}>
@@ -786,10 +867,16 @@
                                         </div>
                                         <div className="grid grid-cols-4 gap-2 p-2 bg-gray-50">
                                             {calcButtons.map(btn => (
-                                                <button key={btn} onClick={() => handleCalcPress(btn)} className={`aspect-[1.3] flex items-center justify-center rounded-lg shadow-sm text-xl font-bold active:scale-95 transition-transform ${['/','*','-','+'].includes(btn) ? 'bg-primary/10 text-primary' : btn === 'backspace' ? 'bg-gray-200 text-gray-700' : 'bg-white text-gray-700'}`}>{btn === 'backspace' ? <Icon name="backspace" /> : btn}</button>
+                                                <button key={btn} onClick={() => handleCalcPress(btn)} 
+                                                    className={`aspect-[1.3] flex items-center justify-center rounded-lg shadow-sm text-xl font-bold active:scale-95 transition-transform 
+                                                        ${btn === 'OK' ? 'col-span-2 bg-primary text-white shadow-md' : ''}
+                                                        ${['/','*','-','+','='].includes(btn) ? 'bg-primary/10 text-primary' : (btn !== 'OK' && btn !== 'backspace') ? 'bg-white text-gray-700' : ''}
+                                                        ${btn === 'backspace' ? 'bg-gray-200 text-gray-700' : ''}
+                                                    `}
+                                                >
+                                                    {btn === 'backspace' ? <Icon name="backspace" /> : btn}
+                                                </button>
                                             ))}
-                                            <button onClick={() => setCalcDisplay('0')} className="col-span-2 py-4 bg-gray-200 rounded-lg shadow-sm text-base font-bold text-gray-600">清除</button>
-                                            <button onClick={() => { handleCalcPress('OK'); }} className="col-span-2 py-4 bg-primary text-white rounded-lg shadow-md text-base font-bold">確認</button>
                                         </div>
                                     </div>
                                 </div>
@@ -832,7 +919,7 @@
                                             {group.label}
                                         </h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                            {group.items.map(acc => {
+                                            {group.items.map((acc, idx) => {
                                                 const style = getAccountStyle(acc.type);
                                                 const currentBalance = calculateAccountBalance(acc);
                                                 return (
@@ -845,11 +932,14 @@
                                                         <div className="p-5 flex-1 flex flex-col">
                                                             <div className="flex justify-between items-start mb-6">
                                                                 <div className={`${style.badge} px-2.5 py-1 rounded-full text-xs font-bold`}>{style.label}</div>
-                                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <div className="flex gap-1">
+                                                                    <div className="flex flex-col gap-0.5 mr-1">
+                                                                        <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'up')}} className="text-gray-300 hover:text-primary leading-none"><Icon name="arrow_drop_up" size="text-xl"/></button>
+                                                                        <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'down')}} className="text-gray-300 hover:text-primary leading-none"><Icon name="arrow_drop_down" size="text-xl"/></button>
+                                                                    </div>
                                                                     <button onClick={(e) => { e.stopPropagation(); setEditAcc(acc); setIsModalOpen(true); }} className="text-gray-400 hover:text-primary p-1"><Icon name="edit" size="text-lg"/></button>
                                                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id); }} className="text-gray-400 hover:text-danger p-1"><Icon name="delete" size="text-lg"/></button>
                                                                 </div>
-                                                                <div className="md:hidden text-gray-400"><Icon name="more_vert" size="text-lg"/></div>
                                                             </div>
                                                             <h4 className="text-lg font-bold mb-1 text-dark truncate">{acc.name}</h4>
                                                             <p className={`text-3xl font-black mb-6 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
@@ -1289,7 +1379,6 @@
                     case 'menu': return <MenuView />;
                     case 'recurring': return <RecurringView />;
                     case 'reconcile': 
-                        // Modified: Use the extracted component
                         return <ReconcileView 
                             accounts={accounts}
                             transactions={transactions}
@@ -1307,7 +1396,6 @@
                          const acc = accounts.find(a => a.id === subViewData);
                          const { start: accStart, end: accEnd } = getAccountDetailRange(subViewDate, acc, settings.cycleStartDay);
                          
-                         // Modified: Added sort by date descending
                          const accTx = transactions.filter(t => {
                              const d = parseDate(t.date);
                              return (t.accountId === subViewData || t.toAccountId === subViewData) && d >= accStart && d <= accEnd;
@@ -1376,7 +1464,6 @@
                          const bud = budgets.find(b => b.id === subViewData);
                          const { start: bCycleStart, end: bCycleEnd } = getCycleRange(subViewDate, bud?.resetDay || 31);
                          
-                         // Modified: Added sort by date descending
                          const bTx = transactions.filter(t => t.budgetId === subViewData && parseDate(t.date) >= bCycleStart && parseDate(t.date) <= bCycleEnd)
                                          .sort((a, b) => b.date.localeCompare(a.date));
                          
@@ -1444,11 +1531,15 @@
                     <main className="flex-1 overflow-y-auto p-4 pb-32">
                         {renderContent()}
                     </main>
-                    <div className="fixed bottom-[3.5rem] left-0 right-0 px-4 z-30 pb-safe pointer-events-none">
-                        <button onClick={() => { setEditingTx(null); setTxModalOpen(true); }} className="w-full bg-primary text-white font-bold text-base py-3 rounded-xl shadow-lg shadow-primary/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 pointer-events-auto">
-                            <Icon name="add" /> 新增交易
-                        </button>
-                    </div>
+                    
+                    {/* FAB Button - Redesigned */}
+                    <button 
+                        onClick={() => { setEditingTx(null); setTxModalOpen(true); }} 
+                        className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center z-50 active:scale-90 transition-transform hover:bg-primary-hover"
+                    >
+                        <Icon name="add" size="text-3xl" />
+                    </button>
+
                     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around items-center pb-safe pt-2 z-40">
                         {[{id:'dashboard',icon:'dashboard',label:'首頁'},{id:'accounts',icon:'account_balance_wallet',label:'帳戶'},{id:'transactions',icon:'receipt_long',label:'明細'},{id:'budgets',icon:'pie_chart',label:'預算'},{id:'menu',icon:'menu',label:'更多'}].map(item => (
                             <button key={item.id} onClick={() => { 
