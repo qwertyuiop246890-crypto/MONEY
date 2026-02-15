@@ -383,14 +383,14 @@
                     </div>
                     <div className="fixed bottom-0 left-0 right-0 bg-white p-4 rounded-t-2xl shadow-[0_-5px_15px_rgba(0,0,0,0.05)] border-t border-gray-100 z-10 safe-pb">
                         <div className="max-w-lg mx-auto">
-                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已核對金額 (本期帳單)</h4>
+                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">已核對金額統計</h4>
                             <div className="grid grid-cols-2 gap-4 mb-2">
                                 <div><span className="text-xs text-gray-400 block">新增消費</span><span className="text-lg font-bold text-danger">{formatMoney(reconciledStats.spending)}</span></div>
                                 <div><span className="text-xs text-gray-400 block">繳款/退款</span><span className="text-lg font-bold text-success">{formatMoney(reconciledStats.payment)}</span></div>
                             </div>
                             <div className="border-t border-gray-100 pt-2 flex justify-between items-center">
-                                <span className="text-sm font-bold text-gray-600">已核對總額</span>
-                                <span className="text-xl font-black text-dark">{formatMoney(reconciledStats.spending - reconciledStats.payment)}</span>
+                                <span className="text-sm font-bold text-gray-600">本期未繳總額 (消費 - 繳款)</span>
+                                <span className={`text-xl font-black ${reconciledStats.spending - reconciledStats.payment >= 0 ? 'text-dark' : 'text-success'}`}>{formatMoney(reconciledStats.spending - reconciledStats.payment)}</span>
                             </div>
                         </div>
                     </div>
@@ -1561,4 +1561,5 @@
     </script>
 </body>
 </html>
+
 
