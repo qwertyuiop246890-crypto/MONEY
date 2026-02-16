@@ -261,14 +261,12 @@
             const acc = isAllCards ? null : (creditAccounts.find(a => a.id === targetAccountId) || creditAccounts[0]);
 
             if (isAllCards) {
-                // "All Cards" mode: Use Global Closing Day (or default 31)
                 const range = getCycleRange(subViewDate, defaultClosingDay || 31);
                 accStart = range.start;
                 accEnd = range.end;
                 
                 accTx = transactions.filter(t => {
                     const d = parseDate(t.date);
-                    // Check if account involved is a credit account
                     const account = accounts.find(a => a.id === t.accountId);
                     const toAccount = accounts.find(a => a.id === t.toAccountId);
                     const isCreditRelated = (account?.type === 'credit') || (toAccount?.type === 'credit');
@@ -277,7 +275,6 @@
                 }).sort((a, b) => b.date.localeCompare(a.date));
 
             } else {
-                // Specific Card
                 const range = getAccountDetailRange(subViewDate, acc, defaultClosingDay);
                 accStart = range.start;
                 accEnd = range.end;
@@ -293,8 +290,6 @@
                 const tToAccId = t.toAccountId;
                 const accType = accounts.find(a => a.id === tAccId)?.type;
                 const toAccType = accounts.find(a => a.id === tToAccId)?.type;
-                
-                // Logic: Only count transactions that affect the selected credit account(s)
                 
                 const isRelevantExpense = isAllCards 
                     ? (t.type === 'expense' && accType === 'credit') || (t.type === 'transfer' && accType === 'credit')
@@ -353,7 +348,6 @@
                         />
                     </div>
 
-                    {/* List Container - Reduced bottom padding to show more items */}
                     <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100 pb-40">
                             {accTx.length > 0 ? accTx.map(t => {
                                 const isSpending = t.type === 'expense' || (t.type === 'transfer' && accounts.find(a=>a.id===t.accountId)?.type === 'credit');
@@ -388,7 +382,6 @@
                             }) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
                     </div>
 
-                    {/* Compact Floating Summary Panel - Slightly higher to clear the new bottom bar */}
                     <div className="fixed bottom-[90px] left-4 right-4 bg-white/95 backdrop-blur p-3 rounded-2xl shadow-[0_5px_20px_rgba(0,0,0,0.1)] border border-gray-100 z-30 flex justify-between items-center transition-transform">
                         <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-2 text-xs">
@@ -480,9 +473,8 @@
             const [budgets, setBudgets] = useState(() => JSON.parse(localStorage.getItem('budgets')) || INITIAL_DATA.budgets);
             const [recurring, setRecurring] = useState(() => JSON.parse(localStorage.getItem('recurring')) || INITIAL_DATA.recurring);
             const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('categories')) || INITIAL_DATA.categories);
-            const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('settings')) || { cycleStartDay: 31, syncUrl: '' });
+            const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('settings')) || { cycleStartDay: 31, syncUrl: '', accountGroupOrder: ['general', 'credit'] });
 
-            // --- SMART DATE INITIALIZATION HELPER ---
             const getInitialDateForCycle = (closingDayParam) => {
                 const now = new Date();
                 const closingDay = parseInt(closingDayParam) || 31;
@@ -744,7 +736,6 @@
                 
                 const calculateResult = (expression) => {
                     try {
-                        // Basic validation to prevent arbitrary code execution
                         if (/[^0-9+\-*/.\s]/.test(expression)) return expression;
                         // eslint-disable-next-line no-new-func
                         const result = Function('"use strict";return (' + expression + ')')();
@@ -761,7 +752,6 @@
                         const res = calculateResult(calcDisplay);
                         setCalcDisplay(res);
                     } else if (key === 'OK') {
-                        // Check if it's an expression like "100+50" that hasn't been evaluated
                         let finalVal = calcDisplay;
                         if (/[+\-*/]/.test(calcDisplay)) {
                             finalVal = calculateResult(calcDisplay);
@@ -775,12 +765,10 @@
                     } else if (key === 'backspace') {
                         setCalcDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
                     } else {
-                        // Append logic
                         setCalcDisplay(prev => prev === '0' && !['/','*','-','+','.'].includes(key) ? String(key) : prev + key);
                     }
                 };
 
-                // Updated Calculator Layout
                 const calcButtons = [
                     'C', '/', '*', 'backspace',
                     '7', '8', '9', '-',
@@ -901,6 +889,7 @@
             const AccountsView = () => {
                 const [isModalOpen, setIsModalOpen] = useState(false);
                 const [editAcc, setEditAcc] = useState(null);
+                
                 const getAccountStyle = (type) => {
                     switch (type) {
                         case 'credit': return { border: 'border-orange-500', badge: 'bg-orange-100 text-orange-600', icon: 'credit_card', label: '信用卡' };
@@ -908,11 +897,28 @@
                         default: return { border: 'border-primary', badge: 'bg-primary/10 text-primary', icon: 'account_balance_wallet', label: '現金錢包' };
                     }
                 };
+
+                // Define grouping logic
                 const accountGroups = {
-                    cash: { label: '現金錢包', items: accounts.filter(a => a.type === 'cash') },
-                    bank: { label: '銀行帳戶', items: accounts.filter(a => a.type === 'bank') },
-                    credit: { label: '信用卡', items: accounts.filter(a => a.type === 'credit') }
+                    general: { 
+                        label: '銀行/現金帳戶', 
+                        items: accounts.filter(a => a.type === 'bank' || a.type === 'cash'),
+                        icon: 'account_balance' 
+                    },
+                    credit: { 
+                        label: '信用卡', 
+                        items: accounts.filter(a => a.type === 'credit'),
+                        icon: 'credit_card'
+                    }
                 };
+
+                const toggleGroupOrder = () => {
+                    const currentOrder = settings.accountGroupOrder || ['general', 'credit'];
+                    const newOrder = [currentOrder[1], currentOrder[0]];
+                    setSettings({...settings, accountGroupOrder: newOrder});
+                };
+
+                const groupOrder = settings.accountGroupOrder || ['general', 'credit'];
 
                 return (
                     <div className="flex flex-col gap-8 px-2 md:px-4">
@@ -923,13 +929,21 @@
                             </div>
                         </div>
                         <div className="space-y-8">
-                            {Object.entries(accountGroups).map(([type, group]) => (
-                                group.items.length > 0 && (
-                                    <div key={type}>
-                                        <h3 className="text-xl font-bold text-dark flex items-center gap-2 mb-4">
-                                            <Icon name={type === 'credit' ? 'credit_card' : type === 'bank' ? 'account_balance' : 'account_balance_wallet'} className="text-primary"/>
-                                            {group.label}
-                                        </h3>
+                            {groupOrder.map((groupKey) => {
+                                const group = accountGroups[groupKey];
+                                if (!group || group.items.length === 0) return null;
+                                
+                                return (
+                                    <div key={groupKey}>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-xl font-bold text-dark flex items-center gap-2">
+                                                <Icon name={group.icon} className="text-primary"/>
+                                                {group.label}
+                                            </h3>
+                                            <div className="flex gap-1">
+                                                <button onClick={toggleGroupOrder} className="p-1 text-gray-300 hover:text-primary rounded-full hover:bg-gray-100"><Icon name="swap_vert" size="text-xl" /></button>
+                                            </div>
+                                        </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                             {group.items.map((acc, idx) => {
                                                 const style = getAccountStyle(acc.type);
@@ -977,8 +991,8 @@
                                             })}
                                         </div>
                                     </div>
-                                )
-                            ))}
+                                );
+                            })}
                             {accounts.length === 0 && (
                                  <div onClick={() => { setEditAcc({ startDate: formatDate(new Date()) }); setIsModalOpen(true); }} className="group border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-8 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer min-h-[240px]">
                                     <div className="size-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-primary/20 group-hover:text-primary transition-colors mb-4">
@@ -993,7 +1007,8 @@
                             <div className="p-6 space-y-4">
                                 <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg" placeholder="帳戶名稱 (例如：台新銀行)" value={editAcc?.name || ''} onChange={e => setEditAcc({...editAcc, name: e.target.value})} />
                                 <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg" value={editAcc?.type || 'cash'} onChange={e => setEditAcc({...editAcc, type: e.target.value})}>
-                                    <option value="cash">現金 / 銀行</option>
+                                    <option value="cash">現金錢包</option>
+                                    <option value="bank">銀行帳戶</option>
                                     <option value="credit">信用卡</option>
                                 </select>
                                 <input type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg" placeholder="初始餘額 (例如：25000)" value={editAcc?.balance ?? ''} onChange={e => setEditAcc({...editAcc, balance: e.target.value})} />
@@ -1093,13 +1108,11 @@
 
             const TransactionsView = () => {
                 const { start: cycleStart, end: cycleEnd } = getCycleRange(subViewDate, settings.cycleStartDay);
-                // Filter AND Sort Logic applied here implicitly via grouping keys
                 const filteredTx = transactions.filter(t => {
                     const d = parseDate(t.date);
                     return d >= cycleStart && d <= cycleEnd;
                 });
                 
-                // Group by Date
                 const groupedTx = filteredTx.reduce((acc, tx) => { (acc[tx.date] = acc[tx.date] || []).push(tx); return acc; }, {});
 
                 const changeMonth = (delta) => {
@@ -1114,7 +1127,6 @@
                     return { bg: 'bg-red-50', color: 'text-danger' };
                 };
 
-                // Helper to sort keys descending (Latest date first)
                 const sortedDates = Object.keys(groupedTx).sort((a,b)=>b.localeCompare(a));
 
                 return (
@@ -1135,7 +1147,6 @@
                                 <div key={date}>
                                     <p className="text-xs font-bold text-gray-400 mb-2 ml-1">{date}</p>
                                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                                        {/* Typically within a day, order by creation or input is fine, but strictly by ID descending is better if we want "Latest input top" */}
                                         {groupedTx[date].map(t => {
                                             const budgetName = budgets.find(b => b.id === t.budgetId)?.name;
                                             const info = getAvatarInfo(t);
@@ -1247,6 +1258,28 @@
                     });
                 };
 
+                const moveCategory = (id, direction) => {
+                    const visibleCats = categories.filter(c => c.type === tab);
+                    const currentIndex = visibleCats.findIndex(c => c.id === id);
+                    if (currentIndex === -1) return;
+
+                    let targetIndex = -1;
+                    if (direction === 'up' && currentIndex > 0) targetIndex = currentIndex - 1;
+                    if (direction === 'down' && currentIndex < visibleCats.length - 1) targetIndex = currentIndex + 1;
+
+                    if (targetIndex === -1) return;
+
+                    const itemA = visibleCats[currentIndex];
+                    const itemB = visibleCats[targetIndex];
+
+                    const indexA = categories.findIndex(c => c.id === itemA.id);
+                    const indexB = categories.findIndex(c => c.id === itemB.id);
+
+                    const newCats = [...categories];
+                    [newCats[indexA], newCats[indexB]] = [newCats[indexB], newCats[indexA]];
+                    setCategories(newCats);
+                };
+
                 return (
                     <div className="space-y-4 flex flex-col h-full">
                         <div className="flex items-center justify-between mb-4 shrink-0">
@@ -1265,11 +1298,17 @@
                         </div>
                         <div className="flex-1 overflow-y-auto space-y-2">
                             {currentCats.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                                <div key={c.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group">
                                     <span className="font-bold text-dark">{c.name}</span>
-                                    <div className="flex gap-1">
-                                        <button onClick={() => { setTempCat(c); setModal(true); }} className="p-2 text-gray-300 hover:text-primary"><Icon name="edit"/></button>
-                                        <button onClick={() => del(c.id)} className="p-2 text-gray-300 hover:text-danger"><Icon name="delete"/></button>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-0.5 mr-2">
+                                            <button onClick={() => moveCategory(c.id, 'up')} className="text-gray-300 hover:text-primary leading-none"><Icon name="arrow_drop_up" size="text-xl"/></button>
+                                            <button onClick={() => moveCategory(c.id, 'down')} className="text-gray-300 hover:text-primary leading-none"><Icon name="arrow_drop_down" size="text-xl"/></button>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => { setTempCat(c); setModal(true); }} className="p-2 text-gray-300 hover:text-primary"><Icon name="edit"/></button>
+                                            <button onClick={() => del(c.id)} className="p-2 text-gray-300 hover:text-danger"><Icon name="delete"/></button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -1306,7 +1345,7 @@
                                     const resText = await response.text();
                                     let resData; try { resData = JSON.parse(resText); } catch (e) { throw new Error('無法解析伺服器回應。'); }
                                     if (resData.status === 'success' && resData.data) {
-                                        const { data } = resData; setAccounts(data.accounts || []); setTransactions(data.transactions || []); setBudgets(data.budgets || []); setRecurring(data.recurring || []); setSettings(prev => ({ ...data.settings, syncUrl: prev.syncUrl }));
+                                        const { data } = resData; setAccounts(data.accounts || []); setTransactions(data.transactions || []); setBudgets(data.budgets || []); setRecurring(data.recurring || []); setCategories(data.categories || []); setSettings(prev => ({ ...data.settings, syncUrl: prev.syncUrl }));
                                         showAlert('成功', '資料已從 Google Drive 還原');
                                     } else throw new Error(resData.message || '無資料或格式錯誤');
                                 } catch(e) { showAlert('還原失敗', e.message); } finally { setIsSyncing(false); }
@@ -1589,5 +1628,4 @@
     </script>
 </body>
 </html>
-
 
