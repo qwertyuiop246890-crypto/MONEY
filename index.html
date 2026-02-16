@@ -955,9 +955,9 @@
                                                         setSubViewDate(getInitialDateForCycle(closingDay)); 
                                                         setView('accountDetail'); 
                                                     }} className={`group bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col`}>
-                                                        <div className="p-5 flex-1 flex flex-col">
-                                                            <div className="flex justify-between items-start mb-6">
-                                                                <div className={`${style.badge} px-2.5 py-1 rounded-full text-xs font-bold`}>{style.label}</div>
+                                                        <div className="p-3 flex-1 flex flex-col">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div className={`${style.badge} px-2 py-0.5 rounded text-[10px] font-bold`}>{style.label}</div>
                                                                 <div className="flex gap-1">
                                                                     <div className="flex flex-col gap-0.5 mr-1">
                                                                         <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'up')}} className="text-gray-300 hover:text-primary leading-none"><Icon name="arrow_drop_up" size="text-xl"/></button>
@@ -967,22 +967,23 @@
                                                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id); }} className="text-gray-400 hover:text-danger p-1"><Icon name="delete" size="text-lg"/></button>
                                                                 </div>
                                                             </div>
-                                                            <h4 className="text-lg font-bold mb-1 text-dark truncate">{acc.name}</h4>
-                                                            <p className={`text-3xl font-black mb-6 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
-                                                            {acc.type === 'credit' && acc.creditLimit && <p className="text-xs text-muted mb-4">額度 {formatMoney(acc.creditLimit)}</p>}
+                                                            <h4 className="text-sm font-bold mb-0.5 text-dark truncate">{acc.name}</h4>
+                                                            <p className={`text-xl font-black mb-1 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
+                                                            {acc.type === 'credit' && acc.creditLimit && <p className="text-[10px] text-muted mb-3">額度 {formatMoney(acc.creditLimit)}</p>}
+                                                            {!acc.type === 'credit' && <div className="mb-3"></div>}
                                                             <div className="flex gap-2 mt-auto">
                                                                 <button onClick={(e) => { e.stopPropagation(); 
                                                                     setSubViewData(acc.id); 
                                                                     const closingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
                                                                     setSubViewDate(getInitialDateForCycle(closingDay)); 
                                                                     setView('accountDetail'); 
-                                                                }} className="flex-1 py-2 text-sm font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
+                                                                }} className="flex-1 py-1.5 text-xs font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
                                                                 {acc.type === 'credit' && (
                                                                     <button onClick={(e) => { 
                                                                         e.stopPropagation(); 
                                                                         setEditingTx({ type: 'transfer', toAccountId: acc.id, date: formatDate(new Date()), amount: '', accountId: accounts.find(a => a.type !== 'credit')?.id || '', note: '信用卡繳款' }); 
                                                                         setTxModalOpen(true); 
-                                                                    }} className="flex-1 py-2 text-sm font-bold border border-primary text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
+                                                                    }} className="flex-1 py-1.5 text-xs font-bold border border-primary text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
                                                                 )}
                                                             </div>
                                                         </div>
