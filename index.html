@@ -744,7 +744,17 @@
                     }
                 }, [initialData]);
 
-                const handleChange = (f, v) => setForm(p => ({ ...p, [f]: v }));
+                const handleChange = (f, v) => {
+                    setForm(p => {
+                        const newData = { ...p, [f]: v };
+                        // 轉帳防呆：切換為轉帳時，自動選擇目標帳戶避免 undefined
+                        if (f === 'type' && v === 'transfer' && (!newData.toAccountId || newData.toAccountId === newData.accountId)) {
+                            const otherAcc = accounts.find(a => String(a.id) !== String(newData.accountId));
+                            if (otherAcc) newData.toAccountId = otherAcc.id;
+                        }
+                        return newData;
+                    });
+                };
                 
                 const calculateResult = (expression) => {
                     try {
@@ -768,8 +778,10 @@
                         if (/[+\-*/]/.test(calcDisplay)) {
                             finalVal = calculateResult(calcDisplay);
                         }
-                        if (finalVal === 'Error') {
-                            alert('計算錯誤');
+                        // 防呆：攔截數學極值與錯誤
+                        if (finalVal === 'Error' || finalVal === 'Infinity' || finalVal === 'NaN') {
+                            alert('計算錯誤或數字無效');
+                            setCalcDisplay('0');
                         } else {
                             handleChange('amount', finalVal);
                             setIsCalcActive(false);
@@ -794,14 +806,18 @@
                         <div className="flex flex-col h-full pb-safe">
                             <div className="flex-1 p-4 space-y-4">
                                 <div className="flex p-1 bg-gray-200 rounded-lg">
-                                    {['expense', 'income', 'transfer'].map(t => (
-                                        <label key={t} className="flex-1 cursor-pointer">
-                                            <input type="radio" name="tx_type" className="hidden peer" checked={form.type === t} onChange={() => handleChange('type', t)} />
-                                            <div className="text-center py-2 text-sm font-medium rounded-md peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm text-gray-500 transition-all">
-                                                {t === 'expense' ? '支出' : '收入'}
-                                            </div>
-                                        </label>
-                                    ))}
+                                    {['expense', 'income', 'transfer'].map(t => {
+                                        // 防呆：如果帳戶少於2個，不顯示轉帳選項
+                                        if (t === 'transfer' && accounts.length < 2) return null;
+                                        return (
+                                            <label key={t} className="flex-1 cursor-pointer">
+                                                <input type="radio" name="tx_type" className="hidden peer" checked={form.type === t} onChange={() => handleChange('type', t)} />
+                                                <div className="text-center py-2 text-sm font-medium rounded-md peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm text-gray-500 transition-all">
+                                                    {t === 'expense' ? '支出' : t === 'income' ? '收入' : '轉帳'}
+                                                </div>
+                                            </label>
+                                        );
+                                    })}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
@@ -817,7 +833,7 @@
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{form.type === 'transfer' ? '轉出' : '帳戶'}</label>
-                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.accountId} onChange={e => { const acc = accounts.find(a => String(a.id) === e.target.value); handleChange('accountId', acc ? acc.id : e.target.value); }}>
+                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.accountId || ''} onChange={e => { const acc = accounts.find(a => String(a.id) === e.target.value); handleChange('accountId', acc ? acc.id : e.target.value); }}>
                                             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                         </select>
                                     </div>
@@ -825,14 +841,14 @@
                                 {form.type === 'transfer' ? (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">轉入帳戶</label>
-                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.toAccountId} onChange={e => { const acc = accounts.find(a => String(a.id) === e.target.value); handleChange('toAccountId', acc ? acc.id : e.target.value); }}>
-                                            {accounts.filter(a => a.id !== form.accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.toAccountId || ''} onChange={e => { const acc = accounts.find(a => String(a.id) === e.target.value); handleChange('toAccountId', acc ? acc.id : e.target.value); }}>
+                                            {accounts.filter(a => String(a.id) !== String(form.accountId)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                         </select>
                                     </div>
                                 ) : (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
-                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.category} onChange={e => handleChange('category', e.target.value)}>
+                                        <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.category || ''} onChange={e => handleChange('category', e.target.value)}>
                                             {categories.filter(c => c.type === form.type).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                         </select>
                                     </div>
@@ -1630,7 +1646,15 @@
                         {/* Center Action Button */}
                         <div className="relative -top-6 flex justify-center w-full">
                             <button 
-                                onClick={() => { setEditingTx(null); setTxModalOpen(true); }} 
+                                onClick={() => { 
+                                    // 防呆：如果尚未有任何帳戶，阻擋記帳並提示
+                                    if (accounts.length === 0) {
+                                        showAlert('提示', '請先至「帳戶」分頁新增至少一個帳戶，才能開始記帳。');
+                                        return;
+                                    }
+                                    setEditingTx(null); 
+                                    setTxModalOpen(true); 
+                                }} 
                                 className="w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-transform hover:bg-primary-hover border-4 border-white"
                             >
                                 <Icon name="add" size="text-3xl" />
