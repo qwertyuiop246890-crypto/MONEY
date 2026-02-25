@@ -171,7 +171,9 @@
             cycleDay,          
             onCycleDayChange,  
             isCreditCard = false, 
-            creditCardInfo = null 
+            creditCardInfo = null,
+            showTotal = false,
+            periodTotal = 0
         }) => {
             return (
                 <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-3 shrink-0">
@@ -188,30 +190,40 @@
                         <button onClick={() => onChangeDate(1)} className="p-2 rounded-full hover:bg-gray-100"><Icon name="chevron_right" /></button>
                     </div>
                     
-                    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-                        {isCreditCard ? (
-                            <>
-                                <span className="text-xs text-gray-500 font-medium">{creditCardInfo ? '帳單資訊' : '每月結帳日'}</span>
-                                <div className="text-sm font-bold text-primary">
-                                    {creditCardInfo || '依結帳日計算'}
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <span className="text-xs text-gray-500 font-medium">每月結帳日</span>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-sm font-bold text-primary">每月</span>
-                                    <select 
-                                        className="bg-transparent bg-none clean-select text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none text-center" 
-                                        value={cycleDay} 
-                                        onChange={e => onCycleDayChange(e.target.value)}
-                                        style={{ textAlignLast: 'center' }} 
-                                    >
-                                        {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-                                    </select>
-                                    <span className="text-sm font-bold text-primary">號</span>
-                                </div>
-                            </>
+                    <div className="flex flex-col bg-gray-50 rounded-xl overflow-hidden">
+                        <div className={`flex items-center justify-between px-3 py-2 ${showTotal ? 'border-b border-gray-200/50' : ''}`}>
+                            {isCreditCard ? (
+                                <>
+                                    <span className="text-xs text-gray-500 font-medium">{creditCardInfo ? '帳單資訊' : '每月結帳日'}</span>
+                                    <div className="text-sm font-bold text-primary">
+                                        {creditCardInfo || '依結帳日計算'}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-xs text-gray-500 font-medium">每月結帳日</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm font-bold text-primary">每月</span>
+                                        <select 
+                                            className="bg-transparent bg-none clean-select text-sm font-bold text-primary outline-none border-none p-0 pr-1 text-right cursor-pointer appearance-none text-center" 
+                                            value={cycleDay} 
+                                            onChange={e => onCycleDayChange(e.target.value)}
+                                            style={{ textAlignLast: 'center' }} 
+                                        >
+                                            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+                                        </select>
+                                        <span className="text-sm font-bold text-primary">號</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        {showTotal && (
+                            <div className="flex items-center justify-between px-3 py-2 bg-gray-50/50">
+                                <span className="text-xs text-gray-500 font-medium">區間總額</span>
+                                <span className={`text-sm font-bold ${periodTotal > 0 ? 'text-success' : periodTotal < 0 ? 'text-danger' : 'text-dark'}`}>
+                                    {periodTotal > 0 ? '+' : ''}{formatMoney(periodTotal)}
+                                </span>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -786,7 +798,7 @@
                                         <label key={t} className="flex-1 cursor-pointer">
                                             <input type="radio" name="tx_type" className="hidden peer" checked={form.type === t} onChange={() => handleChange('type', t)} />
                                             <div className="text-center py-2 text-sm font-medium rounded-md peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm text-gray-500 transition-all">
-                                                {t === 'expense' ? '支出' : t === 'income' ? '收入' : '轉帳'}
+                                                {t === 'expense' ? '支出' : '收入'}
                                             </div>
                                         </label>
                                     ))}
@@ -948,11 +960,12 @@
                                             {group.items.map((acc, idx) => {
                                                 const style = getAccountStyle(acc.type);
                                                 const currentBalance = calculateAccountBalance(acc);
+
                                                 return (
                                                     <div key={acc.id} onClick={() => { 
                                                         setSubViewData(acc.id); 
-                                                        const closingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
-                                                        setSubViewDate(getInitialDateForCycle(closingDay)); 
+                                                        const detailClosingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
+                                                        setSubViewDate(getInitialDateForCycle(detailClosingDay)); 
                                                         setView('accountDetail'); 
                                                     }} className={`group bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-xl transition-all cursor-pointer relative overflow-hidden flex flex-col`}>
                                                         <div className="p-3 flex-1 flex flex-col">
@@ -969,13 +982,15 @@
                                                             </div>
                                                             <h4 className="text-sm font-bold mb-0.5 text-dark truncate">{acc.name}</h4>
                                                             <p className={`text-xl font-black mb-1 tabular-nums ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</p>
+                                                            
                                                             {acc.type === 'credit' && acc.creditLimit && <p className="text-[10px] text-muted mb-3">額度 {formatMoney(acc.creditLimit)}</p>}
                                                             {!acc.type === 'credit' && <div className="mb-3"></div>}
+                                                            
                                                             <div className="flex gap-2 mt-auto">
                                                                 <button onClick={(e) => { e.stopPropagation(); 
                                                                     setSubViewData(acc.id); 
-                                                                    const closingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
-                                                                    setSubViewDate(getInitialDateForCycle(closingDay)); 
+                                                                    const detailClosingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
+                                                                    setSubViewDate(getInitialDateForCycle(detailClosingDay)); 
                                                                     setView('accountDetail'); 
                                                                 }} className="flex-1 py-1.5 text-xs font-semibold border border-border rounded-lg text-primary hover:bg-primary/5 transition-colors">查看明細</button>
                                                                 {acc.type === 'credit' && (
@@ -1457,6 +1472,18 @@
                              return (t.accountId === subViewData || t.toAccountId === subViewData) && d >= accStart && d <= accEnd;
                          }).sort((a, b) => b.date.localeCompare(a.date));
 
+                         // Calculate Period Total (net sum for the specific account in this period)
+                         let periodTotal = 0;
+                         accTx.forEach(t => {
+                             if (t.accountId === acc.id) {
+                                 if (t.type === 'income') periodTotal += Number(t.amount);
+                                 else if (t.type === 'expense' || t.type === 'transfer') periodTotal -= Number(t.amount);
+                             }
+                             if (t.toAccountId === acc.id && t.type === 'transfer') {
+                                 periodTotal += Number(t.amount);
+                             }
+                         });
+
                          const changeDetailMonth = (delta) => {
                              const newDate = new Date(subViewDate);
                              newDate.setMonth(newDate.getMonth() + delta);
@@ -1491,6 +1518,8 @@
                                             const updatedAccounts = accounts.map(a => a.id === acc.id ? {...a, cycleStartDay: newVal} : a);
                                             setAccounts(updatedAccounts);
                                         }}
+                                        showTotal={true}
+                                        periodTotal={periodTotal}
                                     />
                                 </div>
 
@@ -1629,4 +1658,3 @@
     </script>
 </body>
 </html>
-
