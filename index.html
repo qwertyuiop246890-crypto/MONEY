@@ -455,18 +455,18 @@
                 accounts: [],
                 transactions: [],
                 categories: [
-                    // ===== 全新整合的食衣住行育樂分類 =====
-                    {"id":"exp_food","name":"餐飲","type":"expense","subcategories":["早餐","午餐","晚餐","飲料","零食","食材"]},
-                    {"id":"exp_clothing","name":"服飾美容","type":"expense","subcategories":["服飾","鞋子","保養品","洗衣費"]},
-                    {"id":"exp_housing","name":"居住","type":"expense","subcategories":["房租/房貸","水電瓦斯","管理費","居家用品"]},
-                    {"id":"exp_transport","name":"交通","type":"expense","subcategories":["交通費","油錢","停車費","機票"]},
-                    {"id":"exp_edu","name":"教育進修","type":"expense","subcategories":["書籍","課程","學習費用"]},
-                    {"id":"exp_ent","name":"娛樂","type":"expense","subcategories":["娛樂","旅遊","電影","運動"]},
+                    // ===== 根據使用者指南重建的食衣住行育樂分類 =====
+                    {"id":"exp_food","name":"飲食","type":"expense","subcategories":["早餐","午餐","晚餐","飲料零食"]},
+                    {"id":"exp_daily","name":"生活用品","type":"expense","subcategories":["日常必需品","個人護理"]},
+                    {"id":"exp_transport","name":"交通","type":"expense","subcategories":["通勤","偶爾搭車","油錢","停車費"]},
+                    {"id":"exp_housing","name":"居住","type":"expense","subcategories":["房租","水電瓦斯","家具","管理費"]},
+                    {"id":"exp_clothing","name":"服飾","type":"expense","subcategories":["服裝","鞋子","配件"]},
+                    {"id":"exp_edu_ent","name":"育樂","type":"expense","subcategories":["書籍","課程","娛樂","旅遊","運動"]},
                     {"id":"exp_other","name":"其他","type":"expense","subcategories":["醫療","保險","稅捐","雜項"]},
                     
                     // ===== 收入分類 =====
-                    {"id":"inc_fixed","name":"固定收入","type":"income","subcategories":["薪資","獎金","利息"]},
-                    {"id":"inc_var","name":"變動收入","type":"income","subcategories":["投資獲利","接案","退稅","紅包"]}
+                    {"id":"inc_fixed","name":"固定收入","type":"income","subcategories":["薪資","獎金"]},
+                    {"id":"inc_var","name":"變動收入","type":"income","subcategories":["投資獲利","接案","其他"]}
                 ],
                 budgets: [],
                 recurring: []
@@ -483,15 +483,28 @@
             const [recurring, setRecurring] = useState(() => JSON.parse(localStorage.getItem('recurring')) || INITIAL_DATA.recurring);
             const [categories, setCategories] = useState(() => {
                 const saved = JSON.parse(localStorage.getItem('categories'));
-                if (saved && saved.length > 0) {
-                    // 若匯入舊資料，這裡保證能自動加上新版預設分類
-                    const hasNewCats = saved.find(c => c.name === '服飾美容');
-                    if (!hasNewCats) {
-                        return [...INITIAL_DATA.categories, ...saved];
-                    }
-                    return saved;
+                
+                // 如果沒有儲存記錄，使用新的預設分類
+                if (!saved || saved.length === 0) {
+                    return INITIAL_DATA.categories;
                 }
-                return INITIAL_DATA.categories;
+
+                // 自動修復與去重機制 (防範舊資料有重複項目與相同 ID)
+                const uniqueMap = new Map();
+                saved.forEach(cat => {
+                    const key = `${cat.type}_${cat.name}`; // 以 類型+名稱 當作唯一標識
+                    if (!uniqueMap.has(key)) {
+                        uniqueMap.set(key, { ...cat, id: cat.id || generateId() }); // 確保有獨立 ID
+                    } else {
+                        // 如果有重複，保留子分類數量較多的一個，並確保 ID 不會重複打架
+                        const existing = uniqueMap.get(key);
+                        if ((cat.subcategories?.length || 0) > (existing.subcategories?.length || 0)) {
+                            uniqueMap.set(key, { ...cat, id: existing.id }); // 繼承原本的 ID 以防破壞關聯
+                        }
+                    }
+                });
+                
+                return Array.from(uniqueMap.values());
             });
             const [budgets, setBudgets] = useState(() => {
                 const saved = JSON.parse(localStorage.getItem('budgets'));
@@ -1326,13 +1339,22 @@
                 const currentCats = categories.filter(c => c.type === tab);
 
                 const save = () => {
-                    if(!tempCat.name.trim()) return;
+                    const catName = tempCat.name.trim();
+                    if(!catName) return;
+                    
+                    // 防呆：檢查是否已經有同名分類 (排除自己)
+                    const isDuplicate = categories.some(c => c.type === tab && c.name === catName && c.id !== tempCat.id);
+                    if (isDuplicate) {
+                        showAlert('名稱重複', '已經有相同名稱的主分類，請使用其他名稱！');
+                        return;
+                    }
+
                     const subs = tempCat.subcategoriesStr.split(',').map(s => s.trim()).filter(Boolean);
                     
                     if(tempCat.id) {
-                        setCategories(prev => prev.map(c => c.id === tempCat.id ? { ...c, name: tempCat.name, subcategories: subs } : c));
+                        setCategories(prev => prev.map(c => c.id === tempCat.id ? { ...c, name: catName, subcategories: subs } : c));
                     } else {
-                        setCategories(prev => [...prev, { id: generateId(), name: tempCat.name, type: tab, subcategories: subs }]);
+                        setCategories(prev => [...prev, { id: generateId(), name: catName, type: tab, subcategories: subs }]);
                     }
                     setModal(false);
                 };
