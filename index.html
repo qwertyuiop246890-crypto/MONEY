@@ -741,6 +741,50 @@
                 setAccounts(newAccounts);
             };
 
+            // 處理信用卡自動帶入未繳金額與日期的邏輯
+            const handlePayCreditCard = (e, acc) => {
+                e.stopPropagation();
+                const now = new Date();
+                let m = now.getMonth();
+                let y = now.getFullYear();
+                const sDay = parseInt(acc.statementDate) || 1;
+
+                // 決定上一個結帳日
+                let lastStatementDate;
+                if (now.getDate() < sDay) { 
+                    lastStatementDate = new Date(y, m - 1, sDay);
+                } else {
+                    lastStatementDate = new Date(y, m, sDay);
+                }
+                const lastStatementDateStr = formatDate(lastStatementDate);
+
+                // 計算截至該結帳日的未繳餘額 (應繳總額)
+                let unpaidAmt = 0;
+                transactions.forEach(t => {
+                    if (t.date <= lastStatementDateStr) {
+                        if (t.accountId === acc.id) {
+                            if (t.type === 'expense' || t.type === 'transfer') unpaidAmt += Number(t.amount);
+                            else if (t.type === 'income') unpaidAmt -= Number(t.amount);
+                        }
+                        if (t.toAccountId === acc.id && t.type === 'transfer') {
+                            unpaidAmt -= Number(t.amount);
+                        }
+                    }
+                });
+
+                unpaidAmt = Math.max(0, unpaidAmt);
+
+                setEditingTx({
+                    type: 'transfer',
+                    toAccountId: acc.id,
+                    date: lastStatementDateStr, // 預設日期為上個結帳日
+                    amount: unpaidAmt > 0 ? String(unpaidAmt) : '', // 帶入應繳金額
+                    accountId: accounts.find(a => a.type !== 'credit')?.id || '',
+                    note: '信用卡帳單繳款'
+                });
+                setTxModalOpen(true);
+            };
+
             const TransactionFormModal = ({ initialData, isOpen, onClose, onSave, onDelete }) => {
                 const [form, setForm] = useState({ setRecurring: false, budgetId: '', payee: '', ...initialData });
                 const [calcDisplay, setCalcDisplay] = useState('0');
@@ -1021,11 +1065,7 @@
                                                             </div>
 
                                                             {acc.type === 'credit' && (
-                                                                <button onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    setEditingTx({ type: 'transfer', toAccountId: acc.id, date: formatDate(new Date()), amount: '', accountId: accounts.find(a => a.type !== 'credit')?.id || '', note: '信用卡繳款' }); 
-                                                                    setTxModalOpen(true); 
-                                                                }} className="shrink-0 ml-2 py-1.5 px-3 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
+                                                                <button onClick={(e) => handlePayCreditCard(e, acc)} className="shrink-0 ml-2 py-1.5 px-3 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
                                                             )}
                                                         </div>
 
@@ -1135,9 +1175,9 @@
                                 {budgets.slice(0, 3).map(b => {
                                     const { start: bStart, end: bEnd } = getCycleRange(viewDate, b.resetDay || 1);
                                     
-                                    // 精準的預算統計：僅統計 user 手動或自動確認寫入 b.id 的交易
+                                    // 優化邏輯：確保只計算真實支出，不會將轉帳誤認為支出
                                     const used = transactions.filter(t => {
-                                        return t.budgetId === b.id && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd;
+                                        return t.budgetId === b.id && t.type === 'expense' && parseDate(t.date) >= bStart && parseDate(t.date) <= bEnd;
                                     }).reduce((acc, c) => acc + parseFloat(c.amount), 0);
                                     
                                     const percent = Math.min((used / b.limit) * 100, 100);
@@ -1584,7 +1624,7 @@
 
                                 <div className="flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-100 pb-20">
                                     {accTx.length > 0 ? accTx.map(t => {
-                                        // 修復邏輯：只有當此帳戶是「轉出方」時，轉帳才顯示為扣款 (-)
+                                        // 確保轉帳時作為扣款方的正確顯示
                                         const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
                                         const extendedTx = { ...t, displayNegative: isSpending, isNeutral: false };
                                         return <TransactionItem key={t.id} t={extendedTx} accounts={accounts} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} />;
@@ -1596,9 +1636,9 @@
                          const bud = budgets.find(b => b.id === subViewData);
                          const { start: bCycleStart, end: bCycleEnd } = getCycleRange(subViewDate, bud?.resetDay || 31);
                          
-                         // 精準過濾：依據使用者手動寫入的 budgetId
+                         // 優化邏輯：加入 t.type === 'expense' 嚴謹過濾條件
                          const bTx = transactions.filter(t => {
-                             return t.budgetId === subViewData && parseDate(t.date) >= bCycleStart && parseDate(t.date) <= bCycleEnd;
+                             return t.budgetId === subViewData && t.type === 'expense' && parseDate(t.date) >= bCycleStart && parseDate(t.date) <= bCycleEnd;
                          }).sort((a, b) => b.date.localeCompare(a.date));
                          
                          // 整合：分類 + 支付方式統計 (二維度交叉分析)
@@ -1622,6 +1662,14 @@
                              return acc_map;
                          }, {});
                          const breakdownArr = Object.entries(combinedBreakdown).map(([cat, data]) => ({cat, ...data})).sort((a,b) => b.total - a.total);
+
+                         // 新增：計算該預算下的所有刷卡總額與現金總額
+                         let totalBudgetCredit = 0;
+                         let totalBudgetCash = 0;
+                         breakdownArr.forEach(b => {
+                             totalBudgetCredit += b.credit;
+                             totalBudgetCash += b.cash;
+                         });
 
                          const changeBudgetMonth = (delta) => {
                              const newDate = new Date(subViewDate);
@@ -1649,7 +1697,13 @@
                                 <div className="flex-1 overflow-y-auto space-y-4 pb-20">
                                     {/* 整合版：分類與支付方式花費排行榜 */}
                                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                        <h3 className="text-sm font-bold mb-4 text-gray-500 flex items-center gap-2"><Icon name="analytics" size="text-lg"/> 分類與支付方式分析</h3>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-sm font-bold text-gray-500 flex items-center gap-2"><Icon name="analytics" size="text-lg"/> 分類與支付方式分析</h3>
+                                            <div className="flex gap-2 text-[10px] font-bold">
+                                                <span className="flex items-center gap-1 text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded"><Icon name="credit_card" size="text-[12px]"/> {formatMoney(totalBudgetCredit)}</span>
+                                                <span className="flex items-center gap-1 text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded"><Icon name="payments" size="text-[12px]"/> {formatMoney(totalBudgetCash)}</span>
+                                            </div>
+                                        </div>
                                         <div className="space-y-4">
                                             {breakdownArr.map((b, idx) => {
                                                 const maxAmt = breakdownArr[0]?.total || 1;
