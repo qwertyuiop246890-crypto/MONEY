@@ -1053,8 +1053,8 @@
                                             <Icon name={group.icon} className="text-primary"/>
                                             <h3 className="text-lg font-bold text-dark">{group.label}</h3>
                                         </div>
-                                        {/* 全新緊湊式列表設計 (Compact List View) */}
-                                        <div className="flex flex-col gap-3">
+                                        {/* 全新網格列表設計 (Grid View - 3 Columns) */}
+                                        <div className="grid grid-cols-3 gap-2 sm:gap-3">
                                             {group.items.map((acc) => {
                                                 const style = getAccountStyle(acc.type);
                                                 const currentBalance = calculateAccountBalance(acc);
@@ -1065,30 +1065,31 @@
                                                         const detailClosingDay = acc.type === 'credit' ? acc.statementDate : (acc.cycleStartDay || settings.cycleStartDay);
                                                         setSubViewDate(getInitialDateForCycle(detailClosingDay)); 
                                                         setView('accountDetail'); 
-                                                    }} className={`bg-white rounded-xl border-l-4 ${style.border} shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row p-3 gap-3`}>
+                                                    }} className={`bg-white rounded-xl border-t-4 ${style.border} shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col p-2.5 gap-1.5 relative`}>
                                                         
-                                                        <div className="flex-1 flex items-center justify-between min-w-0 pr-1">
-                                                            <div className="flex flex-col truncate pr-2">
-                                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                                    <span className={`text-[10px] ${style.badge} px-1.5 rounded font-bold`}>{style.label}</span>
-                                                                    <span className="font-bold text-sm text-dark truncate">{acc.name}</span>
-                                                                    {acc.type === 'credit' && acc.statementDate && <span className="text-[10px] text-gray-400">每月{acc.statementDate}日結帳</span>}
-                                                                </div>
-                                                                <div className={`text-xl font-black truncate ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</div>
-                                                            </div>
-
-                                                            {acc.type === 'credit' && (
-                                                                <button onClick={(e) => handlePayCreditCard(e, acc)} className="shrink-0 ml-2 py-1.5 px-3 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors">繳款</button>
-                                                            )}
+                                                        {/* 頂部：標籤與編輯按鈕 */}
+                                                        <div className="flex justify-between items-start">
+                                                            <span className={`text-[9px] sm:text-[10px] ${style.badge} px-1.5 py-0.5 rounded font-bold truncate max-w-[70%]`}>{style.label}</span>
+                                                            <button onClick={(e) => { e.stopPropagation(); setEditAcc(acc); setIsModalOpen(true); }} className="text-gray-300 hover:text-primary -mt-1 -mr-1 p-1"><Icon name="edit" size="text-[16px]"/></button>
                                                         </div>
 
-                                                        {/* 操作按鈕群 */}
-                                                        <div className="flex items-center justify-end gap-1 shrink-0 border-t sm:border-t-0 sm:border-l border-gray-100 pt-2 sm:pt-0 sm:pl-3 mt-1 sm:mt-0">
-                                                            <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'up')}} className="p-1 text-gray-300 hover:text-primary"><Icon name="keyboard_arrow_up" size="text-xl"/></button>
-                                                            <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'down')}} className="p-1 text-gray-300 hover:text-primary"><Icon name="keyboard_arrow_down" size="text-xl"/></button>
-                                                            <div className="w-px h-4 bg-gray-200 mx-1"></div>
-                                                            <button onClick={(e) => { e.stopPropagation(); setEditAcc(acc); setIsModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-primary"><Icon name="edit" size="text-lg"/></button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id); }} className="p-1.5 text-gray-400 hover:text-danger"><Icon name="delete" size="text-lg"/></button>
+                                                        {/* 中部：名稱與餘額 */}
+                                                        <div className="flex flex-col min-h-[44px] justify-center mt-1">
+                                                            <span className="font-bold text-xs sm:text-sm text-dark truncate leading-tight">{acc.name}</span>
+                                                            <div className={`text-sm sm:text-lg font-black truncate mt-0.5 ${currentBalance < 0 ? 'text-danger' : 'text-dark'}`}>{formatMoney(currentBalance)}</div>
+                                                        </div>
+
+                                                        {/* 底部：操作按鈕區 (排序/刪除/繳款) */}
+                                                        <div className="mt-auto pt-2 border-t border-gray-50 flex items-center justify-between gap-1">
+                                                            <div className="flex gap-0.5 -ml-1">
+                                                                <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'up')}} className="text-gray-300 hover:text-primary p-0.5"><Icon name="chevron_left" size="text-[18px]"/></button>
+                                                                <button onClick={(e)=>{e.stopPropagation(); moveAccount(acc.id, 'down')}} className="text-gray-300 hover:text-primary p-0.5"><Icon name="chevron_right" size="text-[18px]"/></button>
+                                                            </div>
+                                                            {acc.type === 'credit' ? (
+                                                                <button onClick={(e) => handlePayCreditCard(e, acc)} className="py-1 px-2 text-[10px] font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors whitespace-nowrap">繳款</button>
+                                                            ) : (
+                                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id); }} className="text-gray-300 hover:text-danger p-0.5 -mr-1"><Icon name="delete" size="text-[16px]"/></button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );
@@ -1837,3 +1838,5 @@
     </script>
 </body>
 </html>
+
+
