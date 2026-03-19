@@ -565,7 +565,7 @@
                 return balance;
             };
 
-            // Recurring transaction logic (unchanged)
+            // Recurring transaction logic
             useEffect(() => {
                 const checkRecurring = () => {
                     const now = new Date();
@@ -622,7 +622,7 @@
                                     payee: currentRule.payee || '',
                                     recurringRuleId: currentRule.id, 
                                     budgetId: currentRule.budgetId,
-                                    paymentMethodId: currentRule.paymentMethodId || '', // 新增
+                                    paymentMethodId: currentRule.paymentMethodId || '',
                                     note: (currentRule.note || currentRule.name) + ' (定期)',
                                     isRecurring: true,
                                     reconciled: false
@@ -669,7 +669,7 @@
                             subcategory: tx.subcategory,
                             payee: tx.payee || '',
                             budgetId: tx.budgetId,
-                            paymentMethodId: tx.paymentMethodId || '', // 新增
+                            paymentMethodId: tx.paymentMethodId || '',
                             note: `${tx.note || ''} (分期 ${i + 1}/${installmentCount})`,
                             isInstallmentItem: true,
                             reconciled: false
@@ -695,7 +695,7 @@
                             subcategory: txData.subcategory,
                             payee: txData.payee || '',
                             budgetId: txData.budgetId,
-                            paymentMethodId: txData.paymentMethodId || '', // 新增
+                            paymentMethodId: txData.paymentMethodId || '',
                             note: txData.note,
                             isActive: true,
                             startDate: txData.date,
@@ -906,7 +906,7 @@
                                     </div>
                                 </div>
                                 
-                                {/* Payment Method Row (NEW) */}
+                                {/* Payment Method Row */}
                                 {form.type !== 'transfer' && (
                                     <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
                                         <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1"><Icon name="wallet" size="text-[16px]" className="text-primary" /> 支付方式 (例如：LINE Pay)</label>
@@ -1137,7 +1137,12 @@
                     <div className="flex flex-col gap-6 px-2 md:px-4 pb-10">
                         <div className="flex justify-between items-center mb-2">
                             <h2 className="text-dark text-2xl font-black tracking-tight">帳戶總覽 <span className="text-xs text-gray-400 ml-1 font-normal">(資金來源)</span></h2>
-                            <button onClick={toggleGroupOrder} className="text-gray-400 hover:text-primary p-2 bg-white rounded-full shadow-sm border border-gray-100"><Icon name="swap_vert" size="text-xl" /></button>
+                            
+                            {/* 更新：將排序按鈕與常駐的「新增帳戶」按鈕放在一起 */}
+                            <div className="flex items-center gap-2">
+                                <button onClick={toggleGroupOrder} className="text-gray-400 hover:text-primary p-2 bg-white rounded-full shadow-sm border border-gray-100"><Icon name="swap_vert" size="text-xl" /></button>
+                                <button onClick={() => { setEditAcc({ startDate: formatDate(new Date()) }); setIsModalOpen(true); }} className="text-primary hover:scale-110 transition-transform"><Icon name="add_circle" size="text-3xl" /></button>
+                            </div>
                         </div>
                         <div className="space-y-6">
                             {groupOrder.map((groupKey) => {
@@ -1191,6 +1196,7 @@
                                     </div>
                                 );
                             })}
+                            {/* 保留當完全沒有帳戶時的大型引導按鈕 */}
                             {accounts.length === 0 && (
                                  <div onClick={() => { setEditAcc({ startDate: formatDate(new Date()) }); setIsModalOpen(true); }} className="group border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-8 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer min-h-[240px]">
                                     <div className="size-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-primary/20 group-hover:text-primary transition-colors mb-4">
@@ -1679,7 +1685,7 @@
                     case 'budgets': return <BudgetsView />;
                     case 'menu': return <MenuView />;
                     case 'recurring': return <RecurringView />;
-                    case 'paymentMethods': return <PaymentMethodsView />; // 新增的路由
+                    case 'paymentMethods': return <PaymentMethodsView />;
                     case 'reconcile': 
                         return <ReconcileView 
                             accounts={accounts} transactions={transactions} paymentMethods={paymentMethods}
