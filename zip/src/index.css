@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6324eb;
+  --color-primary-hover: #501ac2;
+  --color-background-light: #f6f6f8;
+  --color-background-dark: #161121;
+  --color-success: #10b981;
+  --color-danger: #f43f5e;
+  --color-warning: #f59e0b;
+  --color-dark: #120e1b;
+  --color-muted: #654d99;
+  --color-border: #d7d0e7;
+  --font-display: "Inter", "Noto Sans TC", sans-serif;
+  --font-sans: "Inter", "Noto Sans TC", sans-serif;
+}
+
+body { font-family: 'Inter', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.material-symbols-outlined.filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+/* Mobile Scrollbar hiding */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.modal-backdrop { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+.bottom-sheet { animation: slideUp 0.3s ease-out; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.animate-scale-in { animation: scaleIn 0.2s ease-out; }
+@keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Checkbox Animation */
+.checkbox-wrapper input:checked + div {
+    background-color: #6324eb;
+    border-color: #6324eb;
+}
+.checkbox-wrapper input:checked + div svg {
+    display: block;
+}
+
+.clean-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none !important; 
+}
