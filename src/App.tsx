@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from './components/Icon';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { TransactionFormModal } from './components/TransactionFormModal';
@@ -15,7 +15,7 @@ import { AccountDetailView } from './views/AccountDetailView';
 import { BudgetDetailView } from './views/BudgetDetailView';
 import { generateId, formatDate } from './utils';
 import { db, auth } from './firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const INITIAL_DATA = {
@@ -80,7 +80,7 @@ export default function App() {
         return INITIAL_DATA.budgets;
     });
     const [settings, setSettings] = useState<any>(() => {
-        const saved = JSON.parse(localStorage.getItem('settings') || 'null') || { cycleStartDay: 31, syncUrl: '', accountGroupOrder: ['general', 'credit'], lastPaymentSources: {}, lastTransferPair: { from: '', to: '' } };
+        const saved = JSON.parse(localStorage.getItem('settings') || 'null') || { cycleStartDay: 31, syncUrl: '', accountGroupOrder: ['general', 'credit'], lastPaymentSources: {}, lastTransferPair: { from: '', to: '' }, lastSyncedAt: null };
         if (!saved.lastPaymentSources) saved.lastPaymentSources = {};
         if (!saved.lastTransferPair) saved.lastTransferPair = { from: '', to: '' };
         return saved;
@@ -98,47 +98,160 @@ export default function App() {
     const [viewDate, setViewDate] = useState(() => getInitialDateForCycle(settings.cycleStartDay)); 
     const [subViewDate, setSubViewDate] = useState(new Date());
     const [user, setUser] = useState<any>(null);
+    const isCloudInitializedRef = useRef(false);
+    const [isCloudInitialized, setIsCloudInitialized] = useState(false);
+    
+    // Use refs to access latest state in onSnapshot without stale closures or re-subscribing
+    const stateRef = useRef<any>({});
+    useEffect(() => {
+        stateRef.current = { accounts, transactions, budgets, recurring, categories, paymentMethods, settings };
+    }, [accounts, transactions, budgets, recurring, categories, paymentMethods, settings]);
+
+    // Initialize as empty string to prevent any push until cloud check is done
+    const lastSyncRef = useRef<string>('');
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (u) => {
             setUser(u);
-            if (u) {
-                // When user logs in, we might want to pull data if local is empty
-                // But user didn't ask for auto-restore, only auto-backup.
+            if (!u) {
+                isCloudInitializedRef.current = false;
+                setIsCloudInitialized(false);
+                lastSyncRef.current = '';
             }
         });
         return () => unsubscribe();
     }, []);
 
+    // Real-time Cloud Sync (Pull)
+    useEffect(() => {
+        if (!user) {
+            setIsCloudInitialized(true); // Allow local use if not logged in
+            return;
+        }
+
+        setIsCloudInitialized(false);
+        isCloudInitializedRef.current = false;
+
+        console.log('Subscribing to cloud sync for user:', user.uid);
+        const metaRef = doc(db, 'users', user.uid, 'backup', 'meta');
+        
+        const unsubscribeMeta = onSnapshot(metaRef, async (snap) => {
+            try {
+                if (snap.exists()) {
+                    const cloudData = snap.data();
+                    const cloudUpdatedAt = new Date(cloudData.updatedAt).getTime();
+                    const localUpdatedAt = stateRef.current.settings.updatedAt ? new Date(stateRef.current.settings.updatedAt).getTime() : 0;
+
+                    if (cloudUpdatedAt > localUpdatedAt) {
+                        console.log('Cloud is newer, pulling data...');
+                        const txRef = doc(db, 'users', user.uid, 'transactions', 'all');
+                        const txSnap = await getDoc(txRef);
+                        let txs = [];
+                        if (txSnap.exists()) {
+                            txs = JSON.parse(txSnap.data().data);
+                        }
+
+                        const accs = JSON.parse(cloudData.accounts);
+                        const cats = JSON.parse(cloudData.categories);
+                        const budgs = JSON.parse(cloudData.budgets);
+                        const recs = JSON.parse(cloudData.recurring);
+                        const pms = JSON.parse(cloudData.paymentMethods);
+                        const sets = JSON.parse(cloudData.settings);
+
+                        lastSyncRef.current = JSON.stringify({ accounts: accs, transactions: txs, budgets: budgs, recurring: recs, categories: cats, paymentMethods: pms, settings: { ...sets, updatedAt: undefined, lastSyncedAt: undefined } });
+
+                        setAccounts(accs);
+                        setCategories(cats);
+                        setBudgets(budgs);
+                        setRecurring(recs);
+                        setPaymentMethods(pms);
+                        setTransactions(txs);
+                        setSettings(sets);
+                        console.log('Cloud data pull complete');
+                    } else {
+                        console.log('Local data is up to date or newer than cloud');
+                        lastSyncRef.current = JSON.stringify({ 
+                            accounts: stateRef.current.accounts, 
+                            transactions: stateRef.current.transactions, 
+                            budgets: stateRef.current.budgets, 
+                            recurring: stateRef.current.recurring, 
+                            categories: stateRef.current.categories, 
+                            paymentMethods: stateRef.current.paymentMethods, 
+                            settings: { ...stateRef.current.settings, updatedAt: undefined, lastSyncedAt: undefined } 
+                        });
+                    }
+                } else {
+                    console.log('No cloud data found, starting fresh');
+                    lastSyncRef.current = JSON.stringify({ 
+                        accounts: stateRef.current.accounts, 
+                        transactions: stateRef.current.transactions, 
+                        budgets: stateRef.current.budgets, 
+                        recurring: stateRef.current.recurring, 
+                        categories: stateRef.current.categories, 
+                        paymentMethods: stateRef.current.paymentMethods, 
+                        settings: { ...stateRef.current.settings, updatedAt: undefined, lastSyncedAt: undefined } 
+                    });
+                }
+            } catch (error) {
+                console.error('Cloud sync pull error:', error);
+            } finally {
+                isCloudInitializedRef.current = true;
+                setIsCloudInitialized(true);
+            }
+        }, (error) => {
+            console.error('Snapshot listener error:', error);
+            setIsCloudInitialized(true);
+        });
+
+        return () => unsubscribeMeta();
+    }, [user]);
+
     // Auto-sync to Cloud
     useEffect(() => {
-        if (!user) return;
+        if (!user || !isCloudInitialized) return;
 
         const syncToCloud = async () => {
             try {
+                const currentData = JSON.stringify({ accounts, transactions, budgets, recurring, categories, paymentMethods, settings: { ...settings, updatedAt: undefined, lastSyncedAt: undefined } });
+                
+                // If lastSyncRef is empty, it means we haven't established a baseline yet.
+                // We should only push if we have a baseline and the data has changed.
+                if (lastSyncRef.current !== '' && currentData === lastSyncRef.current) return;
+
+                const now = new Date().toISOString();
                 const metaRef = doc(db, 'users', user.uid, 'backup', 'meta');
+                
+                // Prepare metadata with current timestamp
+                const updatedSettingsForCloud = { ...settings, updatedAt: now };
+
                 const metaData = {
                     accounts: JSON.stringify(accounts),
                     categories: JSON.stringify(categories),
                     budgets: JSON.stringify(budgets),
                     recurring: JSON.stringify(recurring),
                     paymentMethods: JSON.stringify(paymentMethods),
-                    settings: JSON.stringify(settings),
-                    updatedAt: new Date().toISOString()
+                    settings: JSON.stringify(updatedSettingsForCloud),
+                    updatedAt: now
                 };
                 await setDoc(metaRef, metaData);
 
                 const txRef = doc(db, 'users', user.uid, 'transactions', 'all');
                 await setDoc(txRef, { data: JSON.stringify(transactions) });
+                
+                // Update local settings with both updatedAt and lastSyncedAt in one go
+                const finalSettings = { ...updatedSettingsForCloud, lastSyncedAt: now };
+                setSettings(finalSettings);
+
+                lastSyncRef.current = JSON.stringify({ accounts, transactions, budgets, recurring, categories, paymentMethods, settings: { ...finalSettings, updatedAt: undefined, lastSyncedAt: undefined } });
                 console.log('Cloud backup successful');
             } catch (error) {
                 console.error('Cloud backup failed:', error);
             }
         };
 
-        const timer = setTimeout(syncToCloud, 2000); // Debounce sync
+        const timer = setTimeout(syncToCloud, 100); // Very short debounce for "immediate" feel
         return () => clearTimeout(timer);
-    }, [user, accounts, transactions, budgets, recurring, categories, paymentMethods, settings]);
+    }, [user, accounts, transactions, budgets, recurring, categories, paymentMethods, settings, isCloudInitialized]);
 
     useEffect(() => localStorage.setItem('accounts', JSON.stringify(accounts)), [accounts]);
     useEffect(() => localStorage.setItem('transactions', JSON.stringify(transactions)), [transactions]);
@@ -420,10 +533,28 @@ export default function App() {
         }
     };
 
+    if (user && !isCloudInitialized) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h2 className="text-xl font-bold text-slate-800 mb-2">正在同步雲端資料...</h2>
+                <p className="text-slate-500">請稍候，正在確保您的資料為最新狀態</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-full bg-background-light relative">
             <header className="px-5 py-4 pt-safe-top bg-white border-b border-gray-100 flex justify-between items-center sticky top-0 z-10 shrink-0">
-                <h1 className="text-xl font-black text-primary tracking-tight">MyMoney</h1>
+                <div className="flex items-center gap-2">
+                    <img 
+                        src="/icon.png" 
+                        alt="Logo" 
+                        className="w-8 h-8 rounded-lg object-cover"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
+                    <h1 className="text-xl font-black text-primary tracking-tight">MyMoney</h1>
+                </div>
             </header>
             <main className="flex-1 overflow-y-auto p-4 pb-32">
                 {renderContent()}

@@ -106,14 +106,18 @@ export const MenuView = ({ setView, setSubViewDate, accounts, transactions, budg
                 const data = JSON.parse(content);
                 
                 showConfirm('匯入本地資料', '這將覆蓋目前的本地資料，確定嗎？', () => {
+                    const now = new Date().toISOString();
+                    const newSettings = { ...(data.settings || settings), updatedAt: now };
+                    
                     if (data.accounts) setAccounts(data.accounts);
                     if (data.transactions) setTransactions(data.transactions);
                     if (data.budgets) setBudgets(data.budgets);
                     if (data.recurring) setRecurring(data.recurring);
                     if (data.categories) setCategories(data.categories);
                     if (data.paymentMethods) setPaymentMethods(data.paymentMethods);
-                    if (data.settings) setSettings(data.settings);
-                    showAlert('成功', '本地資料已成功匯入！');
+                    setSettings(newSettings);
+                    
+                    showAlert('成功', '本地資料已成功匯入並準備同步！');
                 });
             } catch (error) {
                 showAlert('錯誤', '檔案格式不正確或無法解析');
@@ -139,16 +143,47 @@ export const MenuView = ({ setView, setSubViewDate, accounts, transactions, budg
                     setView('reconcile'); 
                 }} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50 hover:bg-gray-50 transition-colors"><div className="flex items-center gap-3"><Icon name="fact_check" className="text-orange-500 bg-orange-50 p-1.5 rounded-lg"/><span className="font-bold text-dark">信用卡對帳</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
                 <button onClick={() => setView('categories')} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50 hover:bg-gray-50 transition-colors"><div className="flex items-center gap-3"><Icon name="category" className="text-blue-500 bg-blue-50 p-1.5 rounded-lg"/><span className="font-bold text-dark">主/子分類管理</span></div><Icon name="chevron_right" className="text-gray-300" size="text-xl"/></button>
-                <button onClick={handleAuth} className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 active:bg-gray-50 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <Icon name="cloud_sync" className={`${auth.currentUser ? 'text-green-500 bg-green-50' : 'text-gray-400 bg-gray-50'} p-1.5 rounded-lg`}/>
-                        <div className="text-left">
-                            <span className="font-bold text-dark block">雲端自動同步</span>
-                            <span className="text-[10px] text-gray-500">{auth.currentUser ? `已登入: ${auth.currentUser.email}` : '點擊登入以啟用自動備份'}</span>
+                <div className="w-full p-4 bg-white border-b border-gray-100 last:border-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Icon name="cloud_sync" className={`${auth.currentUser ? 'text-green-500 bg-green-50' : 'text-gray-400 bg-gray-50'} p-1.5 rounded-lg`}/>
+                            <div className="text-left">
+                                <span className="font-bold text-dark block">雲端自動同步</span>
+                                <span className="text-[10px] text-gray-500">
+                                    {auth.currentUser 
+                                        ? `已登入: ${auth.currentUser.email}` 
+                                        : '點擊登入以啟用自動備份'}
+                                </span>
+                                {auth.currentUser && settings.lastSyncedAt && (
+                                    <span className="text-[10px] text-gray-400 block mt-0.5">
+                                        上次同步: {new Date(settings.lastSyncedAt).toLocaleString()}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {auth.currentUser ? (
+                                <>
+                                    <button 
+                                        onClick={() => {
+                                            const now = new Date().toISOString();
+                                            setSettings({ ...settings, updatedAt: now });
+                                            showAlert('同步中', '正在手動觸發雲端同步...');
+                                        }}
+                                        className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-bold active:scale-95 transition-transform"
+                                    >
+                                        立即同步
+                                    </button>
+                                    <span className="text-[10px] bg-green-100 text-green-600 px-2 py-1 rounded-full font-bold">同步中</span>
+                                </>
+                            ) : (
+                                <button onClick={handleAuth} className="text-gray-300 active:scale-95 transition-transform">
+                                    <Icon name="login" size="text-xl"/>
+                                </button>
+                            )}
                         </div>
                     </div>
-                    {auth.currentUser ? <span className="text-[10px] bg-green-100 text-green-600 px-2 py-1 rounded-full font-bold">同步中</span> : <Icon name="login" className="text-gray-300" size="text-xl"/>}
-                </button>
+                </div>
             </div>
             
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm p-5">
