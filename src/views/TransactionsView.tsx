@@ -28,8 +28,10 @@ export const TransactionsView = ({ subViewDate, setSubViewDate, settings, setSet
 
     return (
         <div className="space-y-4 h-full flex flex-col">
-            <div className="flex flex-col gap-3 shrink-0">
-                 <div className="flex justify-between items-center"><h2 className="text-2xl font-bold">交易明細</h2></div>
+            <div className="flex flex-col gap-2 sm:gap-3 shrink-0">
+                 <div className="flex justify-between items-center px-1">
+                    <h2 className="text-xl sm:text-2xl font-black text-dark tracking-tight">交易明細</h2>
+                 </div>
                  <DateController 
                     currentDate={subViewDate} onChangeDate={changeMonth} 
                     cycleStart={cycleStart} cycleEnd={cycleEnd} 
