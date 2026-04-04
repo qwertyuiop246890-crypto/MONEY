@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/backup/meta
+    // Document ID: meta
+    // Fields:
+    //   - accounts: string (optional)
+    //   - categories: string (optional)
+    //   - budgets: string (optional)
+    //   - recurring: string (optional)
+    //   - paymentMethods: string (optional)
+    //   - settings: string (optional)
+    //   - updatedAt: string (optional)
+    //
+    // Collection: users/{userId}/transactions/{transactionId}
+    // Document ID: transactionId
+    // Fields:
+    //   - data: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidBackupMeta() {
+      return request.resource.data.keys().hasOnly(['accounts', 'categories', 'budgets', 'recurring', 'paymentMethods', 'settings', 'updatedAt']) &&
+             (!('accounts' in request.resource.data) || request.resource.data.accounts is string) &&
+             (!('categories' in request.resource.data) || request.resource.data.categories is string) &&
+             (!('budgets' in request.resource.data) || request.resource.data.budgets is string) &&
+             (!('recurring' in request.resource.data) || request.resource.data.recurring is string) &&
+             (!('paymentMethods' in request.resource.data) || request.resource.data.paymentMethods is string) &&
+             (!('settings' in request.resource.data) || request.resource.data.settings is string) &&
+             (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string);
+    }
+
+    function isValidTransaction() {
+      return request.resource.data.keys().hasOnly(['data']) &&
+             request.resource.data.data is string;
+    }
+
+    match /users/{userId} {
+      allow read, write: if false; // No direct access to user document
+
+      match /backup/meta {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidBackupMeta();
+        allow update: if isOwner(userId) && isValidBackupMeta();
+        allow delete: if isOwner(userId);
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTransaction();
+        allow update: if isOwner(userId) && isValidTransaction();
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

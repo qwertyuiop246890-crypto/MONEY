@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "BackupMeta": {
+      "title": "Backup Meta",
+      "description": "Stores accounts, categories, budgets, recurring rules, payment methods, and settings.",
+      "type": "object",
+      "properties": {
+        "accounts": { "type": "string", "description": "JSON stringified accounts" },
+        "categories": { "type": "string", "description": "JSON stringified categories" },
+        "budgets": { "type": "string", "description": "JSON stringified budgets" },
+        "recurring": { "type": "string", "description": "JSON stringified recurring rules" },
+        "paymentMethods": { "type": "string", "description": "JSON stringified payment methods" },
+        "settings": { "type": "string", "description": "JSON stringified settings" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A single transaction record.",
+      "type": "object",
+      "properties": {
+        "data": { "type": "string", "description": "JSON stringified transaction data to preserve exact structure" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/backup/meta": {
+      "schema": { "$ref": "#/entities/BackupMeta" },
+      "description": "User's metadata backup."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User's transaction backup."
+    }
+  }
+}
