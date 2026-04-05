@@ -142,6 +142,12 @@ export default function App() {
                     const cloudUpdatedAt = new Date(cloudData.updatedAt).getTime();
                     const localUpdatedAt = stateRef.current.settings.updatedAt ? new Date(stateRef.current.settings.updatedAt).getTime() : 0;
 
+                    // Ignore local writes to prevent echo/flicker
+                    if (snap.metadata.hasPendingWrites) {
+                        console.log('Ignoring local write snapshot');
+                        return;
+                    }
+
                     if (cloudUpdatedAt > localUpdatedAt) {
                         console.log('Cloud is newer, pulling data...');
                         const txRef = doc(db, 'users', user.uid, 'transactions', 'all');
@@ -168,8 +174,11 @@ export default function App() {
                         setTransactions(txs);
                         setSettings(sets);
                         console.log('Cloud data pull complete');
+                    } else if (localUpdatedAt > cloudUpdatedAt) {
+                        console.log('Local data is newer, scheduling push...');
+                        lastSyncRef.current = ''; // Force push
                     } else {
-                        console.log('Local data is up to date or newer than cloud');
+                        console.log('Data is in sync');
                         lastSyncRef.current = JSON.stringify({ 
                             accounts: stateRef.current.accounts, 
                             transactions: stateRef.current.transactions, 
@@ -182,15 +191,8 @@ export default function App() {
                     }
                 } else {
                     console.log('No cloud data found, starting fresh');
-                    lastSyncRef.current = JSON.stringify({ 
-                        accounts: stateRef.current.accounts, 
-                        transactions: stateRef.current.transactions, 
-                        budgets: stateRef.current.budgets, 
-                        recurring: stateRef.current.recurring, 
-                        categories: stateRef.current.categories, 
-                        paymentMethods: stateRef.current.paymentMethods, 
-                        settings: { ...stateRef.current.settings, updatedAt: undefined, lastSyncedAt: undefined } 
-                    });
+                    // Leave lastSyncRef empty so syncToCloud will push the initial data
+                    lastSyncRef.current = '';
                 }
             } catch (error) {
                 console.error('Cloud sync pull error:', error);
@@ -220,10 +222,19 @@ export default function App() {
 
                 const now = new Date().toISOString();
                 const metaRef = doc(db, 'users', user.uid, 'backup', 'meta');
+                const txRef = doc(db, 'users', user.uid, 'transactions', 'all');
                 
                 // Prepare metadata with current timestamp
                 const updatedSettingsForCloud = { ...settings, updatedAt: now };
+                const finalSettings = { ...updatedSettingsForCloud, lastSyncedAt: now };
 
+                // Update stateRef synchronously to prevent race conditions with onSnapshot
+                stateRef.current.settings = finalSettings;
+
+                // 1. Write transactions first
+                await setDoc(txRef, { data: JSON.stringify(transactions) });
+
+                // 2. Write metadata last (this triggers onSnapshot on other devices)
                 const metaData = {
                     accounts: JSON.stringify(accounts),
                     categories: JSON.stringify(categories),
@@ -234,12 +245,8 @@ export default function App() {
                     updatedAt: now
                 };
                 await setDoc(metaRef, metaData);
-
-                const txRef = doc(db, 'users', user.uid, 'transactions', 'all');
-                await setDoc(txRef, { data: JSON.stringify(transactions) });
                 
-                // Update local settings with both updatedAt and lastSyncedAt in one go
-                const finalSettings = { ...updatedSettingsForCloud, lastSyncedAt: now };
+                // Update local settings
                 setSettings(finalSettings);
 
                 lastSyncRef.current = JSON.stringify({ accounts, transactions, budgets, recurring, categories, paymentMethods, settings: { ...finalSettings, updatedAt: undefined, lastSyncedAt: undefined } });
