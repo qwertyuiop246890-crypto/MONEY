@@ -346,11 +346,21 @@ export const TransactionFormModal = ({ initialData, isOpen, onClose, onSave, onD
                         </div>
                     )}
 
-                    {form.type === 'expense' && accounts.find((a: any) => String(a.id) === String(form.accountId))?.type === 'credit' && !form.id && (
+                    {form.type === 'expense' && !form.id && (
                         <div className="bg-gray-50 p-2 rounded-lg border border-gray-100">
-                            <label className="block text-xs font-bold text-gray-500 mb-1">信用卡分期 (選填)</label>
-                            <input type="number" className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="留空即為一次付清 (例如: 3)" value={form.installmentCount || ''} onChange={e => handleChange('installmentCount', e.target.value)} />
-                            <p className="text-[10px] text-gray-400 mt-1">若填寫，系統將自動按月拆分交易，餘額計入首期。</p>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">分期付款 (選填)</label>
+                            <select className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none" value={form.installmentCount || ''} onChange={e => handleChange('installmentCount', e.target.value)}>
+                                <option value="">無分期 (一次付清)</option>
+                                <option value="3">3 期</option>
+                                <option value="6">6 期</option>
+                                <option value="12">12 期</option>
+                                <option value="24">24 期</option>
+                            </select>
+                            {form.installmentCount && parseInt(form.installmentCount) > 1 && form.amount > 0 && (
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                    將自動建立 {form.installmentCount} 筆交易，首期 {Math.floor(form.amount / parseInt(form.installmentCount)) + (form.amount % parseInt(form.installmentCount))} 元，其餘每期 {Math.floor(form.amount / parseInt(form.installmentCount))} 元。
+                                </p>
+                            )}
                         </div>
                     )}
                     {form.isInstallmentItem && <div className="bg-blue-50 text-primary p-2 rounded text-xs font-medium">✨ 此為分期付款項目</div>}

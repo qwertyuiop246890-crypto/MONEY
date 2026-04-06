@@ -13,6 +13,7 @@ import { ReconcileView } from './views/ReconcileView';
 import { CategoryView } from './views/CategoryView';
 import { AccountDetailView } from './views/AccountDetailView';
 import { BudgetDetailView } from './views/BudgetDetailView';
+import { InstallmentsView } from './views/InstallmentsView';
 import { generateId, formatDate } from './utils';
 import { db, auth } from './firebase';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -520,6 +521,7 @@ export default function App() {
             case 'transactions': return <TransactionsView subViewDate={subViewDate} setSubViewDate={setSubViewDate} settings={settings} setSettings={setSettings} transactions={transactions} accounts={accounts} paymentMethods={paymentMethods} categories={categories} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
             case 'budgets': return <BudgetsView budgets={budgets} setBudgets={setBudgets} categories={categories} setView={setView} showConfirm={showConfirm} />;
             case 'menu': return <MenuView setView={setView} setSubViewDate={setSubViewDate} accounts={accounts} transactions={transactions} budgets={budgets} recurring={recurring} categories={categories} paymentMethods={paymentMethods} settings={settings} setAccounts={setAccounts} setTransactions={setTransactions} setBudgets={setBudgets} setRecurring={setRecurring} setCategories={setCategories} setPaymentMethods={setPaymentMethods} setSettings={setSettings} showAlert={showAlert} showConfirm={showConfirm} />;
+            case 'installments': return <InstallmentsView setView={setView} transactions={transactions} />;
             case 'recurring': return <RecurringView recurring={recurring} setRecurring={setRecurring} setTransactions={setTransactions} budgets={budgets} accounts={accounts} paymentMethods={paymentMethods} categories={categories} setView={setView} showConfirm={showConfirm} />;
             case 'paymentMethods': return <PaymentMethodsView paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setView={setView} showAlert={showAlert} showConfirm={showConfirm} />;
             case 'reconcile': 

@@ -2,6 +2,9 @@ import React from 'react';
 import { Icon } from '../components/Icon';
 import { DateController } from '../components/DateController';
 import { getCycleRange, parseDate, formatMoney } from '../utils';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#ffc658', '#ff7300', '#38bdf8', '#fb7185', '#a3e635'];
 
 export const DashboardView = ({ viewDate, setViewDate, settings, setSettings, transactions, budgets, setSubViewData, setSubViewDate, setView }: any) => {
     const { start: cycleStart, end: cycleEnd } = getCycleRange(viewDate, settings.cycleStartDay);
@@ -12,6 +15,39 @@ export const DashboardView = ({ viewDate, setViewDate, settings, setSettings, tr
     const income = currentTx.filter((t: any) => t.type === 'income').reduce((acc: number, c: any) => acc + parseFloat(c.amount), 0);
     const expense = currentTx.filter((t: any) => t.type === 'expense').reduce((acc: number, c: any) => acc + parseFloat(c.amount), 0);
     
+    // Calculate category expenses for pie chart
+    const categoryExpenses: Record<string, number> = {};
+    currentTx.filter((t: any) => t.type === 'expense').forEach((t: any) => {
+        const cat = t.category || '未分類';
+        categoryExpenses[cat] = (categoryExpenses[cat] || 0) + parseFloat(t.amount);
+    });
+    const pieData = Object.keys(categoryExpenses).map(key => ({
+        name: key,
+        value: categoryExpenses[key]
+    })).sort((a, b) => b.value - a.value);
+
+    // Calculate 6-month trend
+    const trendData = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(viewDate);
+        d.setMonth(d.getMonth() - i);
+        const { start, end } = getCycleRange(d, settings.cycleStartDay);
+        
+        const monthTx = transactions.filter((t: any) => {
+            const txDate = parseDate(t.date);
+            return txDate >= start && txDate <= end;
+        });
+
+        const mIncome = monthTx.filter((t: any) => t.type === 'income').reduce((acc: number, c: any) => acc + parseFloat(c.amount), 0);
+        const mExpense = monthTx.filter((t: any) => t.type === 'expense').reduce((acc: number, c: any) => acc + parseFloat(c.amount), 0);
+        
+        trendData.push({
+            name: `${d.getMonth() + 1}月`,
+            收入: mIncome,
+            支出: mExpense
+        });
+    }
+
     const changeMonth = (delta: number) => {
         const newDate = new Date(viewDate);
         newDate.setMonth(newDate.getMonth() + delta);
@@ -72,6 +108,52 @@ export const DashboardView = ({ viewDate, setViewDate, settings, setSettings, tr
                         )
                     })}
                     {budgets.length === 0 && <p className="text-gray-400 text-sm text-center py-4 bg-gray-50 rounded-xl">尚未設定預算，前往管理以追蹤支出！</p>}
+                </div>
+            </section>
+
+            {/* Data Analysis Sections */}
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <h3 className="font-bold text-dark mb-4">支出結構分析</h3>
+                {pieData.length > 0 ? (
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={pieData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {pieData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value: number) => formatMoney(value)} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                ) : (
+                    <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl">本期尚無支出紀錄</div>
+                )}
+            </section>
+
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <h3 className="font-bold text-dark mb-4">近六個月收支趨勢</h3>
+                <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={(value) => value > 0 ? `${value/1000}k` : '0'} />
+                            <Tooltip formatter={(value: number) => formatMoney(value)} cursor={{ fill: '#f3f4f6' }} />
+                            <Legend wrapperStyle={{ fontSize: '12px' }} />
+                            <Bar dataKey="支出" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                            <Bar dataKey="收入" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </section>
         </div>
