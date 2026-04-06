@@ -2,7 +2,7 @@ import React from 'react';
 import { Icon } from './Icon';
 import { formatMoney } from '../utils';
 
-export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymentMethods = [], showAccountBadge = false }: any) => {
+export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymentMethods = [], categories = [], showAccountBadge = false }: any) => {
     const getAvatarInfo = (type: string) => {
         if (type === 'transfer') return { bg: 'bg-blue-50', color: 'text-primary' };
         if (type === 'income') return { bg: 'bg-green-50', color: 'text-success' };
@@ -28,8 +28,22 @@ export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymen
                         </div>
                     </div>
                 )}
-                <div className={`size-8 sm:size-10 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0 ${info.bg} ${info.color}`}>
-                    {t.category ? t.category.substring(0, 2) : (t.type === 'transfer' ? '轉帳' : '其他')}
+                <div className={`size-8 sm:size-10 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0 overflow-hidden ${info.bg} ${info.color}`}>
+                    {t.category ? (
+                        (() => {
+                            // Find the category object to check for custom icon
+                            // We need to pass categories to TransactionItem to do this properly.
+                            // But wait, the categories are not passed to TransactionItem currently.
+                            // Let's modify TransactionItem to accept categories.
+                            const catObj = categories?.find((c: any) => c.name === t.category && c.type === t.type);
+                            if (catObj?.customIcon) {
+                                return <img src={catObj.customIcon} alt={t.category} className="w-full h-full object-cover" />;
+                            } else if (catObj?.icon) {
+                                return <Icon name={catObj.icon} size="text-lg sm:text-xl" />;
+                            }
+                            return t.category.substring(0, 2);
+                        })()
+                    ) : (t.type === 'transfer' ? '轉帳' : '其他')}
                 </div>
                 <div className="flex flex-col overflow-hidden">
                     <div className={`font-bold text-xs sm:text-sm truncate ${t.reconciled ? 'text-gray-400 line-through' : 'text-dark group-hover:text-primary transition-colors'}`}>
@@ -41,7 +55,12 @@ export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymen
                         {showAccountBadge && tAccName && <span className="px-1 py-0.5 bg-primary/5 text-primary rounded text-[9px] sm:text-[10px] shrink-0">{tAccName}</span>}
                         {tPaymentMethod && t.type !== 'transfer' && (
                             <span className="flex items-center gap-0.5 px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] sm:text-[10px] shrink-0">
-                                <Icon name={tPaymentMethod.icon} size="text-[9px] sm:text-[10px]" /> {tPaymentMethod.name}
+                                {tPaymentMethod.customIcon ? (
+                                    <img src={tPaymentMethod.customIcon} alt={tPaymentMethod.name} className="w-3 h-3 rounded-full object-cover" />
+                                ) : (
+                                    <Icon name={tPaymentMethod.icon} size="text-[9px] sm:text-[10px]" />
+                                )}
+                                {tPaymentMethod.name}
                             </span>
                         )}
                         {showNoteInSubtitle && (

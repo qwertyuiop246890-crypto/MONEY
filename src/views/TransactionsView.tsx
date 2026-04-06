@@ -1,9 +1,9 @@
 import React from 'react';
 import { DateController } from '../components/DateController';
 import { TransactionItem } from '../components/TransactionItem';
-import { getCycleRange, parseDate, formatDate } from '../utils';
+import { getCycleRange, parseDate, formatDate, formatMoney } from '../utils';
 
-export const TransactionsView = ({ subViewDate, setSubViewDate, settings, setSettings, transactions, accounts, paymentMethods, setEditingTx, setTxModalOpen, onDelete }: any) => {
+export const TransactionsView = ({ subViewDate, setSubViewDate, settings, setSettings, transactions, accounts, paymentMethods, categories, setEditingTx, setTxModalOpen, onDelete }: any) => {
     const { start: cycleStart, end: cycleEnd } = getCycleRange(subViewDate, settings.cycleStartDay);
     const filteredTx = transactions.filter((t: any) => {
         const d = parseDate(t.date);
@@ -40,17 +40,28 @@ export const TransactionsView = ({ subViewDate, setSubViewDate, settings, setSet
                 />
             </div>
             <div className="flex-1 overflow-y-auto space-y-4 pb-20">
-                {sortedDates.map(date => (
-                    <div key={date}>
-                        <p className="text-xs font-bold text-gray-400 mb-2 ml-1">{date}</p>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            {groupedTx[date].map((t: any) => {
-                                const extendedTx = { ...t, displayNegative: t.type === 'expense', isNeutral: t.type === 'transfer' };
-                                return <TransactionItem key={t.id} t={extendedTx} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} accounts={accounts} paymentMethods={paymentMethods} />;
-                            })}
+                {sortedDates.map(date => {
+                    const dailyIncome = groupedTx[date].filter((t: any) => t.type === 'income').reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+                    const dailyExpense = groupedTx[date].filter((t: any) => t.type === 'expense').reduce((acc: number, t: any) => acc + Number(t.amount), 0);
+                    
+                    return (
+                        <div key={date}>
+                            <div className="flex justify-between items-end mb-2 ml-1 mr-1">
+                                <p className="text-xs font-bold text-gray-400">{date}</p>
+                                <div className="flex gap-3 text-[10px] font-bold">
+                                    {dailyIncome > 0 && <span className="text-success bg-success/10 px-1.5 py-0.5 rounded">收入 {formatMoney(dailyIncome)}</span>}
+                                    {dailyExpense > 0 && <span className="text-danger bg-danger/10 px-1.5 py-0.5 rounded">支出 {formatMoney(dailyExpense)}</span>}
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                {groupedTx[date].map((t: any) => {
+                                    const extendedTx = { ...t, displayNegative: t.type === 'expense', isNeutral: t.type === 'transfer' };
+                                    return <TransactionItem key={t.id} t={extendedTx} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} accounts={accounts} paymentMethods={paymentMethods} categories={categories} />;
+                                })}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {sortedDates.length === 0 && <div className="text-center py-10 text-gray-400">本區間無交易紀錄</div>}
             </div>
         </div>

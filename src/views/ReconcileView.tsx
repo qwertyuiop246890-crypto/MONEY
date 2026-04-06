@@ -4,7 +4,7 @@ import { DateController } from '../components/DateController';
 import { TransactionItem } from '../components/TransactionItem';
 import { getCycleRange, getAccountDetailRange, parseDate, formatMoney, formatDate } from '../utils';
 
-export const ReconcileView = ({ accounts, transactions, paymentMethods, subViewData, setSubViewData, subViewDate, setSubViewDate, defaultClosingDay, setView, onToggleReconcile, setEditingTx, setTxModalOpen, onDelete }: any) => {
+export const ReconcileView = ({ accounts, transactions, paymentMethods, categories, subViewData, setSubViewData, subViewDate, setSubViewDate, defaultClosingDay, setView, onToggleReconcile, setEditingTx, setTxModalOpen, onDelete }: any) => {
     const creditAccounts = useMemo(() => accounts.filter((a: any) => a.type === 'credit'), [accounts]);
     const targetAccountId = subViewData; 
     const isAllCards = targetAccountId === 'all';
@@ -119,7 +119,7 @@ export const ReconcileView = ({ accounts, transactions, paymentMethods, subViewD
                             ? t.type === 'expense' || (t.type === 'transfer' && accounts.find((a: any)=>a.id===t.accountId)?.type === 'credit')
                             : t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
                         const extendedTx = { ...t, displayNegative: isSpending, onToggleReconcile };
-                        return <TransactionItem key={t.id} t={extendedTx} accounts={accounts} paymentMethods={paymentMethods} showAccountBadge={isAllCards} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} />;
+                        return <TransactionItem key={t.id} t={extendedTx} accounts={accounts} paymentMethods={paymentMethods} categories={categories} showAccountBadge={isAllCards} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} />;
                     }) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
             </div>
 

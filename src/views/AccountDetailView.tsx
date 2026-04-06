@@ -4,7 +4,7 @@ import { DateController } from '../components/DateController';
 import { TransactionItem } from '../components/TransactionItem';
 import { getAccountDetailRange, parseDate, formatDate } from '../utils';
 
-export const AccountDetailView = ({ accounts, transactions, paymentMethods, subViewData, subViewDate, setSubViewDate, settings, setAccounts, setView, setEditingTx, setTxModalOpen, onDelete }: any) => {
+export const AccountDetailView = ({ accounts, transactions, paymentMethods, categories, subViewData, subViewDate, setSubViewDate, settings, setAccounts, setView, setEditingTx, setTxModalOpen, onDelete }: any) => {
     const acc = accounts.find((a: any) => String(a.id) === String(subViewData));
     const { start: accStart, end: accEnd } = getAccountDetailRange(subViewDate, acc, settings.cycleStartDay);
     
@@ -62,7 +62,7 @@ export const AccountDetailView = ({ accounts, transactions, paymentMethods, subV
                {accTx.length > 0 ? accTx.map((t: any) => {
                    const isSpending = t.type === 'expense' || (t.type === 'transfer' && t.accountId === acc.id);
                    const extendedTx = { ...t, displayNegative: isSpending, isNeutral: false };
-                   return <TransactionItem key={t.id} t={extendedTx} accounts={accounts} paymentMethods={paymentMethods} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} />;
+                   return <TransactionItem key={t.id} t={extendedTx} accounts={accounts} paymentMethods={paymentMethods} categories={categories} onClick={() => { setEditingTx(t); setTxModalOpen(true); }} onCopy={handleCopy} onDelete={onDelete} />;
                }) : <div className="p-8 text-center text-gray-400">本週期無交易紀錄</div>}
            </div>
        </div>

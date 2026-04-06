@@ -517,14 +517,14 @@ export default function App() {
         switch(view) {
             case 'dashboard': return <DashboardView viewDate={viewDate} setViewDate={setViewDate} settings={settings} setSettings={setSettings} transactions={transactions} budgets={budgets} setSubViewData={setSubViewData} setSubViewDate={setSubViewDate} setView={setView} />;
             case 'accounts': return <AccountsView accounts={accounts} setAccounts={setAccounts} transactions={transactions} setTransactions={setTransactions} settings={settings} setSettings={setSettings} setSubViewData={setSubViewData} setSubViewDate={setSubViewDate} setView={setView} showConfirm={showConfirm} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} />;
-            case 'transactions': return <TransactionsView subViewDate={subViewDate} setSubViewDate={setSubViewDate} settings={settings} setSettings={setSettings} transactions={transactions} accounts={accounts} paymentMethods={paymentMethods} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
+            case 'transactions': return <TransactionsView subViewDate={subViewDate} setSubViewDate={setSubViewDate} settings={settings} setSettings={setSettings} transactions={transactions} accounts={accounts} paymentMethods={paymentMethods} categories={categories} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
             case 'budgets': return <BudgetsView budgets={budgets} setBudgets={setBudgets} categories={categories} setView={setView} showConfirm={showConfirm} />;
             case 'menu': return <MenuView setView={setView} setSubViewDate={setSubViewDate} accounts={accounts} transactions={transactions} budgets={budgets} recurring={recurring} categories={categories} paymentMethods={paymentMethods} settings={settings} setAccounts={setAccounts} setTransactions={setTransactions} setBudgets={setBudgets} setRecurring={setRecurring} setCategories={setCategories} setPaymentMethods={setPaymentMethods} setSettings={setSettings} showAlert={showAlert} showConfirm={showConfirm} />;
             case 'recurring': return <RecurringView recurring={recurring} setRecurring={setRecurring} setTransactions={setTransactions} budgets={budgets} accounts={accounts} paymentMethods={paymentMethods} categories={categories} setView={setView} showConfirm={showConfirm} />;
             case 'paymentMethods': return <PaymentMethodsView paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods} setView={setView} showAlert={showAlert} showConfirm={showConfirm} />;
             case 'reconcile': 
                 return <ReconcileView 
-                    accounts={accounts} transactions={transactions} paymentMethods={paymentMethods}
+                    accounts={accounts} transactions={transactions} paymentMethods={paymentMethods} categories={categories}
                     subViewData={subViewData} setSubViewData={setSubViewData}
                     subViewDate={subViewDate} setSubViewDate={setSubViewDate}
                     defaultClosingDay={settings.cycleStartDay}
@@ -533,9 +533,9 @@ export default function App() {
                 />;
             case 'categories': return <CategoryView categories={categories} setCategories={setCategories} setView={setView} showAlert={showAlert} showConfirm={showConfirm} />;
             case 'accountDetail': 
-                 return <AccountDetailView accounts={accounts} transactions={transactions} paymentMethods={paymentMethods} subViewData={subViewData} subViewDate={subViewDate} setSubViewDate={setSubViewDate} settings={settings} setAccounts={setAccounts} setView={setView} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
+                 return <AccountDetailView accounts={accounts} transactions={transactions} paymentMethods={paymentMethods} categories={categories} subViewData={subViewData} subViewDate={subViewDate} setSubViewDate={setSubViewDate} settings={settings} setAccounts={setAccounts} setView={setView} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
              case 'budgetDetail':
-                 return <BudgetDetailView budgets={budgets} transactions={transactions} accounts={accounts} paymentMethods={paymentMethods} subViewData={subViewData} subViewDate={subViewDate} setSubViewDate={setSubViewDate} setView={setView} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
+                 return <BudgetDetailView budgets={budgets} transactions={transactions} accounts={accounts} paymentMethods={paymentMethods} categories={categories} subViewData={subViewData} subViewDate={subViewDate} setSubViewDate={setSubViewDate} setView={setView} setEditingTx={setEditingTx} setTxModalOpen={setTxModalOpen} onDelete={handleDeleteTransaction} />;
             default: return <DashboardView viewDate={viewDate} setViewDate={setViewDate} settings={settings} setSettings={setSettings} transactions={transactions} budgets={budgets} setSubViewData={setSubViewData} setSubViewDate={setSubViewDate} setView={setView} />;
         }
     };
