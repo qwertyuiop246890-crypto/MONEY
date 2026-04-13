@@ -18,7 +18,7 @@ export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymen
     const amountColor = t.reconciled ? 'text-gray-300' : (t.isNeutral ? 'text-gray-500' : (t.displayNegative ? 'text-danger' : 'text-success'));
 
     return (
-        <label onClick={onClick} className="flex justify-between p-3 sm:p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none group">
+        <div onClick={onClick} className="flex justify-between p-3 sm:p-4 border-b border-gray-50 last:border-0 items-center cursor-pointer hover:bg-gray-50 transition-colors checkbox-wrapper select-none group">
             <div className="flex items-center gap-2 sm:gap-3 flex-1 overflow-hidden mr-2">
                 {t.onToggleReconcile && (
                     <div className="relative shrink-0 mr-1" onClick={e => e.stopPropagation()}>
@@ -109,6 +109,6 @@ export const TransactionItem = ({ t, onClick, onCopy, onDelete, accounts, paymen
                     )}
                 </div>
             </div>
-        </label>
+        </div>
     );
 };
